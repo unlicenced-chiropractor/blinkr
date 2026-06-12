@@ -67,7 +67,7 @@ jobs:
 
       - name: Build Tauri (Windows)
         working-directory: apps/desktop
-        run: npx tauri build --config "{\"build\":{\"beforeBuildCommand\":\"\"}}"
+        run: npx tauri build --config src-tauri/tauri.ci.json
 
       - name: Collect Windows installer
         shell: pwsh
@@ -105,7 +105,7 @@ jobs:
 
       - name: Build Tauri (macOS)
         working-directory: apps/desktop
-        run: npx tauri build --config '{"build":{"beforeBuildCommand":""}}'
+        run: npx tauri build --config src-tauri/tauri.ci.json
 
       - name: Collect macOS disk image
         run: |

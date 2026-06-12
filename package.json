@@ -15,7 +15,7 @@
     "build": "npm run build -w @blinkr/web",
     "build:api": "npm run build -w @blinkr/api",
     "build:desktop": "npm run tauri build -w @blinkr/desktop",
-    "build:desktop:prod": "npm run build:production -w @blinkr/web && npm run tauri build -w @blinkr/desktop",
+    "build:desktop:prod": "npm run build:production -w @blinkr/web && npm run tauri build -w @blinkr/desktop -- --config src-tauri/tauri.ci.json",
     "lint": "npm run lint -w @blinkr/web"
   },
   "engines": {
