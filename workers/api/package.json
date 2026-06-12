@@ -1,0 +1,17 @@
+{
+  "name": "@blinkr/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply blinkr-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply blinkr-db --remote"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250409.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.12.0"
+  }
+}

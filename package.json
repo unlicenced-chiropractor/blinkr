@@ -1,0 +1,23 @@
+{
+  "name": "blinkr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blinkr — fast, modern text messaging for web and desktop",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "workers/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @blinkr/web",
+    "dev:api": "npm run dev -w @blinkr/api",
+    "dev:desktop": "npm run tauri dev -w @blinkr/desktop",
+    "build": "npm run build -w @blinkr/web",
+    "build:api": "npm run build -w @blinkr/api",
+    "build:desktop": "npm run tauri build -w @blinkr/desktop",
+    "lint": "npm run lint -w @blinkr/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
