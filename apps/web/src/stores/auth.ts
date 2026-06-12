@@ -70,5 +70,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('blinkr-token', 'demo-token')
   }
 
-  return { user, token, isAuthenticated, login, register, fetchMe, logout, enterDemoMode }
+  async function uploadAvatar(file: File) {
+    const form = new FormData()
+    form.append('avatar', file)
+    user.value = await api.upload<User>('/auth/avatar', form)
+  }
+
+  return { user, token, isAuthenticated, login, register, fetchMe, logout, enterDemoMode, uploadAvatar }
 })

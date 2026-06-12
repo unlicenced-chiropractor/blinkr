@@ -2,17 +2,24 @@ name = "blinkr-api"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 
+[assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "blinkr-db"
-database_id = "local-dev-placeholder"
+database_id = "cfe5b9dc-9381-4779-8b95-75870116fa9e"
 
-[[r2_buckets]]
-binding = "IMAGES"
-bucket_name = "blinkr-images"
+# Enable R2 in the Cloudflare dashboard, create bucket blinkr-images, then uncomment:
+# [[r2_buckets]]
+# binding = "IMAGES"
+# bucket_name = "blinkr-images"
 
 [durable_objects]
 bindings = [
@@ -21,7 +28,7 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_classes = ["ChatRoom"]
+new_sqlite_classes = ["ChatRoom"]
 
 [dev]
 port = 8787

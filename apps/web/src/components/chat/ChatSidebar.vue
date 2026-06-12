@@ -1,19 +1,34 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import BlinkrLogo from '@/components/ui/BlinkrLogo.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 import ConversationItem from '@/components/chat/ConversationItem.vue'
 import type { Conversation } from '@blinkr/shared'
 
-defineProps<{
+const props = defineProps<{
   conversations: Conversation[]
   activeId: string | null
   getDisplayName: (c: Conversation) => string
   getAvatarUrl: (c: Conversation) => string | null
   getPreview: (c: Conversation) => string
+  getUnread?: (c: Conversation) => number
 }>()
 
 const emit = defineEmits<{ select: [id: string] }>()
+
+const searchQuery = ref('')
+
+const filteredConversations = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return props.conversations
+  return props.conversations.filter((c) => {
+    const name = props.getDisplayName(c).toLowerCase()
+    const preview = props.getPreview(c).toLowerCase()
+    const username = c.peer?.username?.toLowerCase() ?? ''
+    return name.includes(q) || preview.includes(q) || username.includes(q)
+  })
+})
 </script>
 
 <template>
@@ -50,6 +65,7 @@ const emit = defineEmits<{ select: [id: string] }>()
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
+          v-model="searchQuery"
           type="search"
           placeholder="Search chats..."
           class="w-full rounded-xl bg-elevated-light py-2.5 pl-10 pr-4 text-sm outline-none ring-1 ring-border-light transition focus:ring-2 focus:ring-blink-500 dark:bg-elevated-dark dark:ring-border-dark"
@@ -59,20 +75,21 @@ const emit = defineEmits<{ select: [id: string] }>()
 
     <div class="scrollbar-thin flex-1 overflow-y-auto px-2 pb-4">
       <ConversationItem
-        v-for="conv in conversations"
+        v-for="conv in filteredConversations"
         :key="conv.id"
         :conversation="conv"
         :active="conv.id === activeId"
         :display-name="getDisplayName(conv)"
         :avatar-url="getAvatarUrl(conv)"
         :preview="getPreview(conv)"
+        :unread="getUnread?.(conv) ?? conv.unreadCount ?? 0"
         @select="emit('select', conv.id)"
       />
       <p
-        v-if="!conversations.length"
+        v-if="!filteredConversations.length"
         class="px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark"
       >
-        No conversations yet. Add friends to start chatting!
+        {{ searchQuery ? 'No chats match your search' : 'No conversations yet. Add friends to start chatting!' }}
       </p>
     </div>
   </aside>

@@ -1,19 +1,27 @@
-interface Session {
+import type { Env } from '../env'
+import { verifyToken } from '../utils'
+
+interface ClientSession {
   userId: string
-  subscriptions: Map<string, Set<WebSocket>>
+  ws: WebSocket
+  subscribedConversations: Set<string>
+  pendingSubscriptions: Set<string>
 }
 
 export class ChatRoom implements DurableObject {
-  private sessions = new Map<string, Session>()
+  private clients = new Set<ClientSession>()
 
-  constructor(private state: DurableObjectState) {}
+  constructor(
+    private state: DurableObjectState,
+    private env: Env,
+  ) {}
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === '/broadcast' && request.method === 'POST') {
-      const event = await request.json()
-      this.broadcast(event)
+      const event = await request.json() as { type: string; message?: { conversationId: string } }
+      this.broadcastEvent(event)
       return new Response('ok')
     }
 
@@ -30,57 +38,77 @@ export class ChatRoom implements DurableObject {
 
   private handleSession(ws: WebSocket) {
     ws.accept()
-    let userId: string | null = null
-    const subscribedConversations = new Set<string>()
+    const session: ClientSession = {
+      userId: '',
+      ws,
+      subscribedConversations: new Set(),
+      pendingSubscriptions: new Set(),
+    }
+    this.clients.add(session)
 
-    ws.addEventListener('message', (event) => {
+    ws.addEventListener('message', async (event) => {
       try {
         const data = JSON.parse(event.data as string)
 
         switch (data.type) {
-          case 'auth':
-            userId = data.userId
-            if (userId) {
-              let session = this.sessions.get(userId)
-              if (!session) {
-                session = { userId, subscriptions: new Map() }
-                this.sessions.set(userId, session)
-              }
+          case 'auth': {
+            const userId = await verifyToken(data.token, this.env.JWT_SECRET)
+            if (!userId) {
+              ws.send(JSON.stringify({ type: 'error', message: 'Invalid token' }))
+              return
             }
+            session.userId = userId
+            for (const id of session.pendingSubscriptions) {
+              session.subscribedConversations.add(id)
+            }
+            session.pendingSubscriptions.clear()
             ws.send(JSON.stringify({ type: 'authenticated', userId }))
             break
+          }
 
           case 'subscribe':
-            if (!userId) break
-            subscribedConversations.add(data.conversationId)
+            if (!session.userId) {
+              session.pendingSubscriptions.add(data.conversationId)
+              break
+            }
+            session.subscribedConversations.add(data.conversationId)
             break
 
           case 'unsubscribe':
-            subscribedConversations.delete(data.conversationId)
+            session.subscribedConversations.delete(data.conversationId)
             break
 
           case 'typing':
-            if (!userId) break
-            this.broadcastToConversation(data.conversationId, {
-              type: 'typing',
-              state: {
-                conversationId: data.conversationId,
-                userId,
-                isTyping: data.isTyping,
+            if (!session.userId) break
+            this.broadcastToConversation(
+              data.conversationId,
+              {
+                type: 'typing',
+                state: {
+                  conversationId: data.conversationId,
+                  userId: session.userId,
+                  isTyping: data.isTyping,
+                },
               },
-            }, userId)
+              session,
+            )
             break
 
           case 'read':
-            if (!userId) break
-            this.broadcastToConversation(data.conversationId, {
-              type: 'read_receipt',
-              receipt: {
-                userId,
-                messageId: data.messageId,
-                readAt: new Date().toISOString(),
+            if (!session.userId) break
+            this.broadcastToConversation(
+              data.conversationId,
+              {
+                type: 'read_receipt',
+                receipt: {
+                  userId: session.userId,
+                  messageId: data.messageId,
+                  conversationId: data.conversationId,
+                  readAt: new Date().toISOString(),
+                },
               },
-            })
+              session,
+            )
             break
 
           case 'ping':
@@ -93,39 +121,48 @@ export class ChatRoom implements DurableObject {
     })
 
     ws.addEventListener('close', () => {
-      if (userId) {
-        this.broadcast({ type: 'presence', userId, online: false })
-      }
+      this.clients.delete(session)
     })
   }
 
-  private broadcast(event: unknown) {
-    const message = JSON.stringify(event)
-    for (const [, session] of this.sessions) {
-      for (const [, sockets] of session.subscriptions) {
-        for (const ws of sockets) {
-          try {
-            ws.send(message)
-          } catch {
-            // socket closed
-          }
-        }
+  private broadcastEvent(event: {
+    type: string
+    message?: { conversationId: string }
+    conversationId?: string
+  }) {
+    const conversationId = event.message?.conversationId ?? event.conversationId
+    if (conversationId) {
+      this.broadcastToConversation(conversationId, event)
+      return
+    }
+    this.sendToAll(event)
+  }
+
+  private broadcastToConversation(
+    conversationId: string,
+    event: unknown,
+    exclude?: ClientSession,
+  ) {
+    const payload = JSON.stringify(event)
+    for (const client of this.clients) {
+      if (exclude && client === exclude) continue
+      if (!client.userId) continue
+      if (!client.subscribedConversations.has(conversationId)) continue
+      try {
+        client.ws.send(payload)
+      } catch {
+        this.clients.delete(client)
       }
     }
   }
 
-  private broadcastToConversation(conversationId: string, event: unknown, excludeUserId?: string) {
-    const message = JSON.stringify(event)
-    for (const [uid, session] of this.sessions) {
-      if (excludeUserId && uid === excludeUserId) continue
-      const sockets = session.subscriptions.get(conversationId)
-      if (!sockets) continue
-      for (const ws of sockets) {
-        try {
-          ws.send(message)
-        } catch {
-          // socket closed
-        }
+  private sendToAll(event: unknown) {
+    const payload = JSON.stringify(event)
+    for (const client of this.clients) {
+      try {
+        client.ws.send(payload)
+      } catch {
+        this.clients.delete(client)
       }
     }
   }

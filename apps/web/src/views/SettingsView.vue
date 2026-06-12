@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
@@ -8,11 +9,29 @@ import Avatar from '@/components/ui/Avatar.vue'
 const auth = useAuthStore()
 const theme = useThemeStore()
 
+const uploading = ref(false)
+const uploadError = ref('')
+const avatarInput = ref<HTMLInputElement | null>(null)
+
 const themeOptions: { value: ThemeMode; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
   { value: 'system', label: 'System' },
 ]
+
+async function onAvatarChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    await auth.uploadAvatar(file)
+  } catch (err) {
+    uploadError.value = err instanceof Error ? err.message : 'Upload failed'
+  } finally {
+    uploading.value = false
+  }
+}
 </script>
 
 <template>
@@ -34,14 +53,34 @@ const themeOptions: { value: ThemeMode; label: string }[] = [
     <div class="mx-auto max-w-2xl space-y-6 p-4">
       <section class="rounded-2xl bg-panel-light p-4 ring-1 ring-border-light dark:bg-panel-dark dark:ring-border-dark">
         <div class="flex items-center gap-4">
-          <Avatar
-            :src="auth.user?.avatarUrl"
-            :name="auth.user?.displayName ?? 'User'"
-            size="lg"
-          />
+          <button
+            type="button"
+            class="group relative"
+            :disabled="uploading"
+            @click="avatarInput?.click()"
+          >
+            <Avatar
+              :src="auth.user?.avatarUrl"
+              :name="auth.user?.displayName ?? 'User'"
+              size="lg"
+            />
+            <span class="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+              {{ uploading ? '...' : 'Edit' }}
+            </span>
+          </button>
+          <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="onAvatarChange" />
           <div>
             <p class="text-lg font-semibold">{{ auth.user?.displayName }}</p>
             <p class="text-text-secondary-light dark:text-text-secondary-dark">@{{ auth.user?.username }}</p>
+            <button
+              type="button"
+              class="mt-2 text-sm font-medium text-blink-600 hover:underline dark:text-blink-400"
+              :disabled="uploading"
+              @click="avatarInput?.click()"
+            >
+              Change profile photo
+            </button>
+            <p v-if="uploadError" class="mt-1 text-sm text-red-500">{{ uploadError }}</p>
           </div>
         </div>
       </section>

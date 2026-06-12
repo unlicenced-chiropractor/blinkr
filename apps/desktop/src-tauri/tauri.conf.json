@@ -2,11 +2,11 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Blinkr",
   "version": "0.1.0",
-  "identifier": "com.blinkr.app",
+  "identifier": "com.blinkr.chat",
   "build": {
     "beforeDevCommand": "npm run dev -w @blinkr/web",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm run build -w @blinkr/web",
+    "beforeBuildCommand": "npm run build:desktop-web -w @blinkr/web",
     "frontendDist": "../../web/dist"
   },
   "app": {

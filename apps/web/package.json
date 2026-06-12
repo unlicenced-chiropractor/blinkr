@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:desktop-web": "vite build --mode desktop",
+    "build:production": "vite build --mode production",
     "preview": "vite preview",
     "lint": "vue-tsc --noEmit"
   },

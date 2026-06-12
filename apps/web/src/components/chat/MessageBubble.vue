@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Message } from '@blinkr/shared'
 import { REACTION_EMOJIS } from '@blinkr/shared'
 import Avatar from '@/components/ui/Avatar.vue'
+import { mediaUrl } from '@/lib/media'
 
 const props = defineProps<{
   message: Message
@@ -10,7 +11,10 @@ const props = defineProps<{
   senderName: string
   senderAvatar?: string | null
   replyTo?: Message | null
+  replyToName?: string
   showAvatar?: boolean
+  seen?: boolean
+  isLastOwn?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -57,7 +61,7 @@ const isDeleted = computed(() => !!props.message.deletedAt)
         v-if="replyTo"
         class="mb-1 rounded-xl border-l-2 border-blink-500 bg-elevated-light/80 px-3 py-1.5 text-xs dark:bg-elevated-dark/80"
       >
-        <span class="font-medium text-blink-600 dark:text-blink-400">{{ replyTo.senderId }}</span>
+        <span class="font-medium text-blink-600 dark:text-blink-400">{{ replyToName ?? 'Message' }}</span>
         <p class="truncate text-text-secondary-light dark:text-text-secondary-dark">
           {{ replyTo.deletedAt ? 'Message deleted' : replyTo.content }}
         </p>
@@ -71,7 +75,7 @@ const isDeleted = computed(() => !!props.message.deletedAt)
       >
         <img
           v-if="message.type === 'image' && message.imageUrl && !isDeleted"
-          :src="message.imageUrl"
+          :src="mediaUrl(message.imageUrl) ?? undefined"
           alt="Shared image"
           class="mb-2 max-h-64 rounded-xl object-cover"
         />
@@ -85,6 +89,7 @@ const isDeleted = computed(() => !!props.message.deletedAt)
         >
           <span class="text-[11px]">{{ time }}</span>
           <span v-if="message.editedAt" class="text-[11px]">· edited</span>
+          <span v-if="isOwn && isLastOwn && seen" class="text-[11px]">· Seen</span>
         </div>
       </div>
 

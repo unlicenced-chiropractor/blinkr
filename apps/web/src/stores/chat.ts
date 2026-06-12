@@ -10,7 +10,12 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<Record<string, Message[]>>({})
   const activeConversationId = ref<string | null>(null)
   const typingUsers = ref<Record<string, UserId[]>>({})
-  const readUpTo = ref<Record<string, Message['id']>>({})
+  const readReceipts = ref<Record<string, Record<string, string>>>({})
+  const wsRtt = ref<number | null>(null)
+  const lastMessageRtt = ref<number | null>(null)
+  const lastApiRtt = ref<number | null>(null)
+  let pingSentAt = 0
+  let pingTimer: ReturnType<typeof setInterval> | null = null
 
   const auth = useAuthStore()
   const ws = useWebSocket()
@@ -35,6 +40,33 @@ export const useChatStore = defineStore('chat', () => {
     messages.value[conversationId] = await api.get<Message[]>(
       `/conversations/${conversationId}/messages`,
     )
+    readReceipts.value[conversationId] = await api.get<Record<string, string>>(
+      `/conversations/${conversationId}/read-receipts`,
+    )
+    await markActiveConversationRead()
+  }
+
+  async function markActiveConversationRead() {
+    const convId = activeConversationId.value
+    if (!convId) return
+    const msgs = messages.value[convId]
+    const last = msgs?.[msgs.length - 1]
+    if (!last || last.senderId === auth.user?.id) return
+
+    await markConversationRead(convId, last.id)
+  }
+
+  async function markConversationRead(conversationId: string, messageId: string) {
+    await api.post(`/conversations/${conversationId}/read`, { messageId })
+    if (!readReceipts.value[conversationId]) {
+      readReceipts.value[conversationId] = {}
+    }
+    if (auth.user?.id) {
+      readReceipts.value[conversationId][auth.user.id] = messageId
+    }
+    const conv = conversations.value.find((c) => c.id === conversationId)
+    if (conv) conv.unreadCount = 0
+    ws.markRead(conversationId, messageId)
   }
 
   function selectConversation(id: string) {
@@ -43,17 +75,29 @@ export const useChatStore = defineStore('chat', () => {
     }
     activeConversationId.value = id
     ws.subscribe(id)
-    if (!messages.value[id]) {
-      loadMessages(id)
+    loadMessages(id)
+  }
+
+  async function openDirectChat(friendId: string) {
+    const conv = await api.post<Conversation>('/conversations/direct', { friendId })
+    const existing = conversations.value.find((c) => c.id === conv.id)
+    if (!existing) {
+      conversations.value = [conv, ...conversations.value]
+    } else {
+      Object.assign(existing, conv)
     }
+    selectConversation(conv.id)
+    return conv
   }
 
   async function sendMessage(content: string, replyToId?: string) {
     if (!activeConversationId.value || !content.trim()) return
+    const apiStart = performance.now()
     const msg = await api.post<Message>(
       `/conversations/${activeConversationId.value}/messages`,
       { content, replyToId },
     )
+    lastApiRtt.value = Math.round(performance.now() - apiStart)
     appendMessage(msg)
   }
 
@@ -97,11 +141,28 @@ export const useChatStore = defineStore('chat', () => {
 
   function appendMessage(msg: Message) {
     const list = messages.value[msg.conversationId] ?? []
-    if (!list.find((m) => m.id === msg.id)) {
+    const isNew = !list.find((m) => m.id === msg.id)
+    if (isNew) {
       messages.value[msg.conversationId] = [...list, msg]
+      if (msg.senderId !== auth.user?.id) {
+        lastMessageRtt.value = Math.max(0, Math.round(Date.now() - new Date(msg.createdAt).getTime()))
+        const conv = conversations.value.find((c) => c.id === msg.conversationId)
+        if (conv && msg.conversationId !== activeConversationId.value) {
+          conv.unreadCount = (conv.unreadCount ?? 0) + 1
+        }
+        if (msg.conversationId === activeConversationId.value) {
+          markConversationRead(msg.conversationId, msg.id)
+        }
+      }
     }
     const conv = conversations.value.find((c) => c.id === msg.conversationId)
-    if (conv) conv.lastMessageAt = msg.createdAt
+    if (conv) {
+      conv.lastMessageAt = msg.createdAt
+      conversations.value = [
+        conv,
+        ...conversations.value.filter((c) => c.id !== msg.conversationId),
+      ]
+    }
   }
 
   function updateMessage(msg: Message) {
@@ -128,6 +189,27 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function isMessageSeen(conversationId: string, messageId: string, peerId: string | undefined): boolean {
+    if (!peerId) return false
+    const peerReadId = readReceipts.value[conversationId]?.[peerId]
+    if (!peerReadId) return false
+    const msgs = messages.value[conversationId] ?? []
+    const msgIdx = msgs.findIndex((m) => m.id === messageId)
+    const readIdx = msgs.findIndex((m) => m.id === peerReadId)
+    if (msgIdx < 0 || readIdx < 0) return peerReadId === messageId
+    return readIdx >= msgIdx
+  }
+
+  function startLatencyMonitor() {
+    if (pingTimer) return
+    const ping = () => {
+      pingSentAt = performance.now()
+      ws.ping()
+    }
+    ping()
+    pingTimer = setInterval(ping, 2000)
+  }
+
   function connect() {
     if (!auth.token) return
     ws.connect(auth.token, {
@@ -140,9 +222,19 @@ export const useChatStore = defineStore('chat', () => {
       },
       onTyping: (state: TypingState) => setTyping(state.conversationId, state.userId, state.isTyping),
       onReadReceipt: (receipt) => {
-        readUpTo.value[receipt.userId] = receipt.messageId
+        const convId = receipt.conversationId ?? activeConversationId.value
+        if (!convId) return
+        if (!readReceipts.value[convId]) readReceipts.value[convId] = {}
+        readReceipts.value[convId][receipt.userId] = receipt.messageId
+      },
+      onPong: () => {
+        if (pingSentAt) {
+          wsRtt.value = Math.round(performance.now() - pingSentAt)
+          pingSentAt = 0
+        }
       },
     })
+    startLatencyMonitor()
   }
 
   return {
@@ -152,15 +244,21 @@ export const useChatStore = defineStore('chat', () => {
     activeConversation,
     activeMessages,
     activeTypingUsers,
-    readUpTo,
+    readReceipts,
+    wsRtt,
+    lastMessageRtt,
+    lastApiRtt,
     loadConversations,
     loadMessages,
+    openDirectChat,
     selectConversation,
     sendMessage,
     sendImage,
     editMessage,
     deleteMessage,
     reactToMessage,
+    isMessageSeen,
     connect,
+    setTyping: (conversationId: string, isTyping: boolean) => ws.setTyping(conversationId, isTyping),
   }
 })

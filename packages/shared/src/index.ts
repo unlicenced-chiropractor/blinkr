@@ -11,12 +11,29 @@ export interface User {
   createdAt: string
 }
 
+export interface UserSearchResult extends User {
+  exactMatch: boolean
+}
+
+export interface UserSearchResponse {
+  query: string
+  results: UserSearchResult[]
+}
+
 export interface FriendRequest {
   id: string
   fromUserId: UserId
   toUserId: UserId
   status: 'pending' | 'accepted' | 'declined'
   createdAt: string
+  fromUser?: Pick<User, 'id' | 'username' | 'displayName' | 'avatarUrl'>
+}
+
+export interface ConversationPeer {
+  id: UserId
+  username: string
+  displayName: string
+  avatarUrl: string | null
 }
 
 export interface Conversation {
@@ -25,6 +42,8 @@ export interface Conversation {
   name: string | null
   iconUrl: string | null
   memberIds: UserId[]
+  peer?: ConversationPeer | null
+  unreadCount?: number
   lastMessageAt: string | null
   createdAt: string
 }
@@ -52,6 +71,7 @@ export interface ReadReceipt {
   userId: UserId
   messageId: MessageId
   readAt: string
+  conversationId?: ConversationId
 }
 
 export interface TypingState {

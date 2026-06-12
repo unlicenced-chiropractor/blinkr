@@ -7,7 +7,8 @@
     "build": "wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply blinkr-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply blinkr-db --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply blinkr-db --remote",
+    "db:seed": "wrangler d1 execute blinkr-db --local --file=./seed/dev-users.sql"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250409.0",

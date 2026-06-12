@@ -1,4 +1,19 @@
 import type { Env } from '../env'
+import { broadcastToConversation } from '../services/broadcast'
+import {
+  areFriends,
+  getOrCreateDirectConversation,
+  isConversationMember,
+} from '../services/conversations'
+import {
+  HISTORY_FETCH_LIMIT,
+  pruneConversationMessages,
+} from '../services/message-retention'
+import {
+  getConversationReadReceipts,
+  getUnreadCount,
+  markConversationRead,
+} from '../services/read-receipts'
 import { error, getUserId, id, json } from '../utils'
 
 async function formatMessage(env: Env, row: Record<string, unknown>) {
@@ -30,9 +45,80 @@ async function formatMessage(env: Env, row: Record<string, unknown>) {
   }
 }
 
+async function getPeerForDirect(env: Env, conversationId: string, userId: string) {
+  const peer = await env.DB.prepare(`
+    SELECT u.id, u.username, u.display_name, u.avatar_url
+    FROM conversation_members cm
+    JOIN users u ON u.id = cm.user_id
+    WHERE cm.conversation_id = ? AND cm.user_id != ?
+    LIMIT 1
+  `)
+    .bind(conversationId, userId)
+    .first<{
+      id: string
+      username: string
+      display_name: string
+      avatar_url: string | null
+    }>()
+
+  if (!peer) return null
+  return {
+    id: peer.id,
+    username: peer.username,
+    displayName: peer.display_name,
+    avatarUrl: peer.avatar_url,
+  }
+}
+
+async function formatConversation(
+  env: Env,
+  c: Record<string, unknown>,
+  userId: string,
+) {
+  const { results: members } = await env.DB.prepare(
+    'SELECT user_id FROM conversation_members WHERE conversation_id = ?',
+  )
+    .bind(c.id)
+    .all<{ user_id: string }>()
+
+  const peer = c.type === 'direct' ? await getPeerForDirect(env, c.id as string, userId) : null
+  const unreadCount = await getUnreadCount(env, c.id as string, userId)
+
+  return {
+    id: c.id,
+    type: c.type,
+    name: c.name,
+    iconUrl: c.icon_url,
+    memberIds: members.map((m) => m.user_id),
+    peer,
+    unreadCount,
+    lastMessageAt: c.last_message_at,
+    createdAt: c.created_at,
+  }
+}
+
 export async function handleConversations(request: Request, env: Env, path: string): Promise<Response | null> {
+  if (!path.startsWith('/conversations')) return null
+
   const userId = await getUserId(request, env)
   if (!userId) return error('Unauthorized', 401)
+
+  if (path === '/conversations/direct' && request.method === 'POST') {
+    const body = await request.json<{ friendId: string }>()
+    if (!body.friendId) return error('friendId required')
+    if (body.friendId === userId) return error('Cannot message yourself')
+
+    const friends = await areFriends(env, userId, body.friendId)
+    if (!friends) return error('You can only message friends', 403)
+
+    const conversationId = await getOrCreateDirectConversation(env, userId, body.friendId)
+    const row = await env.DB.prepare('SELECT * FROM conversations WHERE id = ?')
+      .bind(conversationId)
+      .first()
+
+    if (!row) return error('Conversation not found', 404)
+    return json(await formatConversation(env, row, userId))
+  }
 
   if (path === '/conversations' && request.method === 'GET') {
     const { results } = await env.DB.prepare(`
@@ -40,45 +126,56 @@ export async function handleConversations(request: Request, env: Env, path: stri
       FROM conversations c
       JOIN conversation_members cm ON cm.conversation_id = c.id
       WHERE cm.user_id = ?
-      ORDER BY c.last_message_at DESC NULLS LAST
+      ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
     `).bind(userId).all()
 
     const conversations = []
     for (const c of results) {
-      const { results: members } = await env.DB.prepare(
-        'SELECT user_id FROM conversation_members WHERE conversation_id = ?',
-      )
-        .bind(c.id)
-        .all<{ user_id: string }>()
-
-      conversations.push({
-        id: c.id,
-        type: c.type,
-        name: c.name,
-        iconUrl: c.icon_url,
-        memberIds: members.map((m) => m.user_id),
-        lastMessageAt: c.last_message_at,
-        createdAt: c.created_at,
-      })
+      conversations.push(await formatConversation(env, c, userId))
     }
 
     return json(conversations)
   }
 
+  const readMatch = path.match(/^\/conversations\/([^/]+)\/read$/)
+  if (readMatch && request.method === 'POST') {
+    const conversationId = readMatch[1]
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
+    const body = await request.json<{ messageId: string }>()
+    if (!body.messageId) return error('messageId required')
+    await markConversationRead(env, conversationId, userId, body.messageId)
+    return json({ ok: true })
+  }
+
+  const receiptsMatch = path.match(/^\/conversations\/([^/]+)\/read-receipts$/)
+  if (receiptsMatch && request.method === 'GET') {
+    const conversationId = receiptsMatch[1]
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
+    return json(await getConversationReadReceipts(env, conversationId))
+  }
+
   const messagesMatch = path.match(/^\/conversations\/([^/]+)\/messages$/)
   if (messagesMatch && request.method === 'GET') {
     const conversationId = messagesMatch[1]
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
+
     const { results } = await env.DB.prepare(`
       SELECT m.* FROM messages m
-      JOIN conversation_members cm ON cm.conversation_id = m.conversation_id
-      WHERE m.conversation_id = ? AND cm.user_id = ?
-      ORDER BY m.created_at ASC
+      WHERE m.conversation_id = ?
+      ORDER BY m.created_at DESC
+      LIMIT ?
     `)
-      .bind(conversationId, userId)
+      .bind(conversationId, HISTORY_FETCH_LIMIT)
       .all()
 
     const messages = []
-    for (const row of results) {
+    for (const row of results.reverse()) {
       messages.push(await formatMessage(env, row))
     }
     return json(messages)
@@ -86,7 +183,13 @@ export async function handleConversations(request: Request, env: Env, path: stri
 
   if (messagesMatch && request.method === 'POST') {
     const conversationId = messagesMatch[1]
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
+
     const body = await request.json<{ content: string; replyToId?: string }>()
+    if (!body.content?.trim()) return error('Message cannot be empty')
+
     const messageId = id()
     const now = new Date().toISOString()
 
@@ -94,16 +197,18 @@ export async function handleConversations(request: Request, env: Env, path: stri
       env.DB.prepare(`
         INSERT INTO messages (id, conversation_id, sender_id, content, reply_to_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(messageId, conversationId, userId, body.content, body.replyToId ?? null, now),
+      `).bind(messageId, conversationId, userId, body.content.trim(), body.replyToId ?? null, now),
       env.DB.prepare('UPDATE conversations SET last_message_at = ? WHERE id = ?')
         .bind(now, conversationId),
     ])
+
+    await pruneConversationMessages(env, conversationId)
 
     const message = await formatMessage(env, {
       id: messageId,
       conversation_id: conversationId,
       sender_id: userId,
-      content: body.content,
+      content: body.content.trim(),
       type: 'text',
       image_url: null,
       reply_to_id: body.replyToId ?? null,
@@ -112,11 +217,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
       created_at: now,
     })
 
-    const room = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName(conversationId))
-    await room.fetch(new Request('https://internal/broadcast', {
-      method: 'POST',
-      body: JSON.stringify({ type: 'message', message }),
-    }))
+    await broadcastToConversation(env, { type: 'message', message })
 
     return json(message, 201)
   }
@@ -124,11 +225,16 @@ export async function handleConversations(request: Request, env: Env, path: stri
   const imageMatch = path.match(/^\/conversations\/([^/]+)\/messages\/image$/)
   if (imageMatch && request.method === 'POST') {
     const conversationId = imageMatch[1]
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
+
     const form = await request.formData()
     const image = form.get('image') as File | null
     const caption = (form.get('caption') as string) ?? ''
 
     if (!image) return error('No image provided')
+    if (!env.IMAGES) return error('Image storage not configured', 503)
 
     const imageId = id()
     const ext = image.name.split('.').pop() ?? 'jpg'
@@ -139,7 +245,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
 
     const messageId = id()
     const now = new Date().toISOString()
-    const imageUrl = `/images/${key}`
+    const imageUrl = `/media/${key}`
 
     await env.DB.batch([
       env.DB.prepare(`
@@ -149,6 +255,8 @@ export async function handleConversations(request: Request, env: Env, path: stri
       env.DB.prepare('UPDATE conversations SET last_message_at = ? WHERE id = ?')
         .bind(now, conversationId),
     ])
+
+    await pruneConversationMessages(env, conversationId)
 
     const message = await formatMessage(env, {
       id: messageId,
@@ -163,11 +271,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
       created_at: now,
     })
 
-    const room = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName(conversationId))
-    await room.fetch(new Request('https://internal/broadcast', {
-      method: 'POST',
-      body: JSON.stringify({ type: 'message', message }),
-    }))
+    await broadcastToConversation(env, { type: 'message', message })
 
     return json(message, 201)
   }
@@ -175,6 +279,9 @@ export async function handleConversations(request: Request, env: Env, path: stri
   const messageMatch = path.match(/^\/conversations\/([^/]+)\/messages\/([^/]+)$/)
   if (messageMatch) {
     const [, conversationId, messageId] = messageMatch
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
 
     if (request.method === 'PATCH') {
       const body = await request.json<{ content: string }>()
@@ -189,11 +296,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
       if (!row) return error('Message not found', 404)
       const message = await formatMessage(env, row)
 
-      const room = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName(conversationId))
-      await room.fetch(new Request('https://internal/broadcast', {
-        method: 'POST',
-        body: JSON.stringify({ type: 'message_updated', message }),
-      }))
+      await broadcastToConversation(env, { type: 'message_updated', message })
 
       return json(message)
     }
@@ -206,11 +309,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
         .bind(now, '', messageId, userId)
         .run()
 
-      const room = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName(conversationId))
-      await room.fetch(new Request('https://internal/broadcast', {
-        method: 'POST',
-        body: JSON.stringify({ type: 'message_deleted', messageId, conversationId }),
-      }))
+      await broadcastToConversation(env, { type: 'message_deleted', messageId, conversationId })
 
       return new Response(null, { status: 204 })
     }
@@ -218,7 +317,11 @@ export async function handleConversations(request: Request, env: Env, path: stri
 
   const reactMatch = path.match(/^\/conversations\/([^/]+)\/messages\/([^/]+)\/react$/)
   if (reactMatch && request.method === 'POST') {
-    const [, , messageId] = reactMatch
+    const [, conversationId, messageId] = reactMatch
+    if (!(await isConversationMember(env, conversationId, userId))) {
+      return error('Not a member of this conversation', 403)
+    }
+
     const body = await request.json<{ emoji: string }>()
 
     const existing = await env.DB.prepare(
@@ -243,7 +346,11 @@ export async function handleConversations(request: Request, env: Env, path: stri
 
     const row = await env.DB.prepare('SELECT * FROM messages WHERE id = ?').bind(messageId).first()
     if (!row) return error('Message not found', 404)
-    return json(await formatMessage(env, row))
+    const message = await formatMessage(env, row)
+
+    await broadcastToConversation(env, { type: 'message_updated', message })
+
+    return json(message)
   }
 
   return null

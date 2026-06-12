@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BLINKR_API_URL: https://blinkr-api.cs2-cases.workers.dev
+  BLINKR_WS_URL: wss://blinkr-api.cs2-cases.workers.dev/ws
+
+jobs:
+  build-web:
+    name: Web / ChromeOS (PWA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build PWA
+        env:
+          VITE_API_URL: ${{ env.BLINKR_API_URL }}
+          VITE_WS_URL: ${{ env.BLINKR_WS_URL }}
+        run: npm run build:production -w @blinkr/web
+
+      - name: Package ChromeOS / PWA artifact
+        run: |
+          cd apps/web/dist
+          zip -r ../../../blinkr-chromeos-pwa.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chromeos-pwa
+          path: blinkr-chromeos-pwa.zip
+
+  build-windows:
+    name: Windows desktop
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        env:
+          VITE_API_URL: ${{ env.BLINKR_API_URL }}
+          VITE_WS_URL: ${{ env.BLINKR_WS_URL }}
+        run: npm run build:production -w @blinkr/web
+
+      - name: Build Tauri (Windows)
+        working-directory: apps/desktop
+        run: npx tauri build --config "{\"build\":{\"beforeBuildCommand\":\"\"}}"
+
+      - name: Collect Windows installer
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path apps/desktop/src-tauri/target/release/bundle/nsis -Filter "*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "Windows installer not found" }
+          Copy-Item $setup.FullName blinkr-windows-setup.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: blinkr-windows-setup.exe
+
+  build-macos:
+    name: macOS desktop
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        env:
+          VITE_API_URL: ${{ env.BLINKR_API_URL }}
+          VITE_WS_URL: ${{ env.BLINKR_WS_URL }}
+        run: npm run build:production -w @blinkr/web
+
+      - name: Build Tauri (macOS)
+        working-directory: apps/desktop
+        run: npx tauri build --config '{"build":{"beforeBuildCommand":""}}'
+
+      - name: Collect macOS disk image
+        run: |
+          DMG=$(find apps/desktop/src-tauri/target/release/bundle/dmg -name "*.dmg" | head -1)
+          if [ -z "$DMG" ]; then echo "DMG not found"; exit 1; fi
+          cp "$DMG" blinkr-macos.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: blinkr-macos.dmg
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-web, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v0.1.0"
+          fi
+          NOTES="## Blinkr ${TAG#v}
+
+          ### Downloads
+          - **Windows**: blinkr-windows-setup.exe
+          - **macOS**: blinkr-macos.dmg
+          - **ChromeOS / Web**: blinkr-chromeos-pwa.zip (PWA) or https://blinkr-api.cs2-cases.workers.dev
+
+          ### Live API
+          ${{ env.BLINKR_API_URL }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              artifacts/windows-installer/blinkr-windows-setup.exe \
+              artifacts/macos-dmg/blinkr-macos.dmg \
+              artifacts/chromeos-pwa/blinkr-chromeos-pwa.zip \
+              --clobber
+          else
+            gh release create "$TAG" \
+              --title "Blinkr ${TAG#v}" \
+              --notes "$NOTES" \
+              artifacts/windows-installer/blinkr-windows-setup.exe \
+              artifacts/macos-dmg/blinkr-macos.dmg \
+              artifacts/chromeos-pwa/blinkr-chromeos-pwa.zip
+          fi

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { mediaUrl } from '@/lib/media'
 
 const props = defineProps<{
   src?: string | null
@@ -7,6 +8,8 @@ const props = defineProps<{
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   online?: boolean
 }>()
+
+const resolvedSrc = computed(() => mediaUrl(props.src))
 
 const initials = computed(() =>
   props.name
@@ -32,11 +35,11 @@ const sizeClass = computed(() => {
 <template>
   <div class="relative inline-flex shrink-0">
     <div
-      v-if="src"
+      v-if="resolvedSrc"
       class="overflow-hidden rounded-full ring-2 ring-border-light dark:ring-border-dark"
       :class="sizeClass"
     >
-      <img :src="src" :alt="name" class="h-full w-full object-cover" />
+      <img :src="resolvedSrc" :alt="name" class="h-full w-full object-cover" />
     </div>
     <div
       v-else

@@ -5,13 +5,16 @@ import type { Message } from '@blinkr/shared'
 
 const props = defineProps<{
   replyTo?: Message | null
+  editingMessage?: Message | null
 }>()
 
 const emit = defineEmits<{
   send: [content: string, replyToId?: string]
+  saveEdit: [content: string]
   sendImage: [file: File]
   typing: [isTyping: boolean]
   cancelReply: []
+  cancelEdit: []
 }>()
 
 const text = ref('')
@@ -20,7 +23,12 @@ const cameraInput = ref<HTMLInputElement | null>(null)
 
 const debouncedStopTyping = useDebounceFn(() => emit('typing', false), 2000)
 
+watch(() => props.editingMessage, (msg) => {
+  text.value = msg?.content ?? ''
+}, { immediate: true })
+
 watch(text, (val) => {
+  if (props.editingMessage) return
   if (val) {
     emit('typing', true)
     debouncedStopTyping()
@@ -32,12 +40,22 @@ watch(text, (val) => {
 function submit() {
   const content = text.value.trim()
   if (!content) return
+  if (props.editingMessage) {
+    emit('saveEdit', content)
+    text.value = ''
+    return
+  }
   emit('send', content, props.replyTo?.id)
   text.value = ''
   emit('typing', false)
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && props.editingMessage) {
+    emit('cancelEdit')
+    text.value = ''
+    return
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     submit()
@@ -57,7 +75,26 @@ function onFileChange(e: Event) {
 <template>
   <div class="border-t border-border-light bg-panel-light/80 p-3 backdrop-blur-xl dark:border-border-dark dark:bg-panel-dark/80">
     <div
-      v-if="replyTo"
+      v-if="editingMessage"
+      class="mb-2 flex items-center justify-between rounded-xl bg-amber-500/10 px-3 py-2 ring-1 ring-amber-500/30"
+    >
+      <div class="min-w-0">
+        <p class="text-xs font-medium text-amber-600 dark:text-amber-400">Editing message</p>
+        <p class="truncate text-sm text-text-secondary-light dark:text-text-secondary-dark">
+          {{ editingMessage.content }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="ml-2 shrink-0 rounded-lg p-1 text-text-secondary-light hover:bg-panel-light dark:text-text-secondary-dark dark:hover:bg-panel-dark"
+        @click="emit('cancelEdit'); text = ''"
+      >
+        ✕
+      </button>
+    </div>
+
+    <div
+      v-else-if="replyTo"
       class="mb-2 flex items-center justify-between rounded-xl bg-elevated-light px-3 py-2 dark:bg-elevated-dark"
     >
       <div class="min-w-0">
@@ -76,7 +113,7 @@ function onFileChange(e: Event) {
     </div>
 
     <div class="flex items-end gap-2">
-      <div class="flex gap-1">
+      <div v-if="!editingMessage" class="flex gap-1">
         <button
           type="button"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark dark:hover:text-blink-400"
@@ -106,7 +143,7 @@ function onFileChange(e: Event) {
         <textarea
           v-model="text"
           rows="1"
-          placeholder="Message..."
+          :placeholder="editingMessage ? 'Edit message...' : 'Message...'"
           class="max-h-32 w-full resize-none rounded-2xl bg-elevated-light px-4 py-2.5 text-[15px] outline-none ring-1 ring-border-light transition placeholder:text-text-secondary-light focus:ring-2 focus:ring-blink-500 dark:bg-elevated-dark dark:ring-border-dark dark:placeholder:text-text-secondary-dark"
           @keydown="onKeydown"
         />
@@ -118,7 +155,10 @@ function onFileChange(e: Event) {
         :disabled="!text.trim()"
         @click="submit"
       >
-        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg v-if="editingMessage" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <svg v-else class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
         </svg>
       </button>

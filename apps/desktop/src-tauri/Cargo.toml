@@ -18,6 +18,8 @@ tauri-plugin-notification = "2"
 tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Pin transitive dep — cookie 0.18.1 conflicts with time 0.3.48+
+time = "=0.3.47"
 
 [profile.release]
 panic = "abort"

@@ -1,4 +1,5 @@
 import type { Env } from '../env'
+import { logAuthEvent } from '../services/auth-log'
 import { error, getUserId, hashPassword, id, json, signToken, verifyPassword } from '../utils'
 
 export async function handleAuth(request: Request, env: Env, path: string): Promise<Response | null> {
@@ -26,6 +27,12 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
     } catch {
       return error('Username already taken', 409)
     }
+
+    await logAuthEvent(env, request, {
+      type: 'register',
+      userId,
+      username: body.username.toLowerCase(),
+    })
 
     const token = await signToken(userId, env.JWT_SECRET)
     return json({
@@ -56,8 +63,18 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
       }>()
 
     if (!user || !(await verifyPassword(body.password, user.password_hash))) {
+      await logAuthEvent(env, request, {
+        type: 'login_failed',
+        username: body.username.toLowerCase(),
+      })
       return error('Invalid credentials', 401)
     }
+
+    await logAuthEvent(env, request, {
+      type: 'login',
+      userId: user.id,
+      username: user.username,
+    })
 
     const token = await signToken(user.id, env.JWT_SECRET)
     return json({
@@ -69,6 +86,53 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
         avatarUrl: user.avatar_url,
         createdAt: user.created_at,
       },
+    })
+  }
+
+  if (path === '/auth/avatar' && request.method === 'POST') {
+    const userId = await getUserId(request, env)
+    if (!userId) return error('Unauthorized', 401)
+
+    const form = await request.formData()
+    const image = form.get('avatar') as File | null
+    if (!image || !image.type.startsWith('image/')) {
+      return error('Valid image file required')
+    }
+    if (!env.IMAGES) return error('Image storage not configured', 503)
+
+    const ext = image.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const key = `avatars/${userId}.${ext}`
+    await env.IMAGES.put(key, image.stream(), {
+      httpMetadata: { contentType: image.type },
+    })
+
+    const avatarUrl = `/media/${key}`
+    await env.DB.prepare('UPDATE users SET avatar_url = ? WHERE id = ?')
+      .bind(avatarUrl, userId)
+      .run()
+
+    const user = await env.DB.prepare(
+      'SELECT id, username, display_name, avatar_url, bio, created_at FROM users WHERE id = ?',
+    )
+      .bind(userId)
+      .first<{
+        id: string
+        username: string
+        display_name: string
+        avatar_url: string | null
+        bio: string | null
+        created_at: string
+      }>()
+
+    if (!user) return error('User not found', 404)
+
+    return json({
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      avatarUrl: user.avatar_url,
+      bio: user.bio,
+      createdAt: user.created_at,
     })
   }
 

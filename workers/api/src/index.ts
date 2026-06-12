@@ -3,7 +3,9 @@ import type { Env } from './env'
 import { handleAuth } from './routes/auth'
 import { handleConversations } from './routes/conversations'
 import { handleFriends } from './routes/friends'
-import { cors, error, verifyToken } from './utils'
+import { handleMedia } from './routes/media'
+import { handleUsers } from './routes/users'
+import { cors, error } from './utils'
 
 export { ChatRoom }
 
@@ -19,15 +21,21 @@ export default {
       return globalRoom.fetch(request)
     }
 
+    const mediaRes = await handleMedia(request, env, path)
+    if (mediaRes) return mediaRes
+
     const authRes = await handleAuth(request, env, path)
     if (authRes) return authRes
 
     const friendsRes = await handleFriends(request, env, path)
     if (friendsRes) return friendsRes
 
+    const usersRes = await handleUsers(request, env, path)
+    if (usersRes) return usersRes
+
     const convRes = await handleConversations(request, env, path)
     if (convRes) return convRes
 
-    return error('Not found', 404)
+    return env.ASSETS.fetch(request)
   },
 }

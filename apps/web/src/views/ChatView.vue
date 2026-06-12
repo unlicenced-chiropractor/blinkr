@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { Conversation, Message } from '@blinkr/shared'
+import { useRoute, useRouter } from 'vue-router'
+import type { Conversation, Message, User } from '@blinkr/shared'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ChatSidebar from '@/components/chat/ChatSidebar.vue'
@@ -8,132 +9,74 @@ import MessageBubble from '@/components/chat/MessageBubble.vue'
 import MessageInput from '@/components/chat/MessageInput.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import Avatar from '@/components/ui/Avatar.vue'
-import { useWebSocket } from '@/composables/useWebSocket'
+import LatencyBadge from '@/components/chat/LatencyBadge.vue'
 
 const auth = useAuthStore()
 const chat = useChatStore()
-const ws = useWebSocket()
+const route = useRoute()
+const router = useRouter()
 
 const replyTo = ref<Message | null>(null)
-const editingId = ref<string | null>(null)
-const editText = ref('')
+const editingMessage = ref<Message | null>(null)
 const showMobileSidebar = ref(true)
+const userCache = ref<Record<string, User>>({})
 
-const demoUsers: Record<string, { name: string; avatar: string | null }> = {
-  u1: { name: 'Jordan', avatar: null },
-  u2: { name: 'Sam', avatar: null },
-  u3: { name: 'Riley', avatar: null },
-}
+const peerId = computed(() => chat.activeConversation?.peer?.id)
+
+const lastOwnMessageId = computed(() => {
+  const msgs = chat.activeMessages
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].senderId === auth.user?.id && !msgs[i].deletedAt) {
+      return msgs[i].id
+    }
+  }
+  return null
+})
 
 onMounted(async () => {
   await auth.fetchMe()
+  if (!auth.isAuthenticated) return
+
   chat.connect()
-  try {
-    await chat.loadConversations()
-  } catch {
-    seedDemoData()
-  }
-  if (chat.conversations.length) {
+  const apiStart = performance.now()
+  await chat.loadConversations()
+  chat.lastApiRtt = Math.round(performance.now() - apiStart)
+
+  const openId = route.query.conversation as string | undefined
+  if (openId && chat.conversations.some((c) => c.id === openId)) {
+    chat.selectConversation(openId)
+    showMobileSidebar.value = false
+    router.replace({ query: {} })
+  } else if (chat.conversations.length) {
     chat.selectConversation(chat.conversations[0].id)
     showMobileSidebar.value = false
   }
+
+  cachePeersFromConversations()
 })
 
-function seedDemoData() {
-  const now = new Date().toISOString()
-  chat.conversations = [
-    {
-      id: 'demo-1',
-      type: 'direct',
-      name: null,
-      iconUrl: null,
-      memberIds: [auth.user?.id ?? 'me', 'u1'],
-      lastMessageAt: now,
-      createdAt: now,
-    },
-    {
-      id: 'demo-2',
-      type: 'group',
-      name: 'Squad 🎮',
-      iconUrl: null,
-      memberIds: [auth.user?.id ?? 'me', 'u2', 'u3'],
-      lastMessageAt: now,
-      createdAt: now,
-    },
-  ] as Conversation[]
-
-  chat.messages['demo-1'] = [
-    {
-      id: 'm1',
-      conversationId: 'demo-1',
-      senderId: 'u1',
-      content: 'yo you coming tonight??',
-      type: 'text',
-      reactions: [{ emoji: '🔥', userIds: ['me'] }],
-      editedAt: null,
-      deletedAt: null,
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 'm2',
-      conversationId: 'demo-1',
-      senderId: auth.user?.id ?? 'me',
-      content: 'yeah for sure, what time?',
-      type: 'text',
-      reactions: [],
-      editedAt: null,
-      deletedAt: null,
-      createdAt: new Date(Date.now() - 3500000).toISOString(),
-    },
-    {
-      id: 'm3',
-      conversationId: 'demo-1',
-      senderId: 'u1',
-      content: '8pm. bring snacks 🍿',
-      type: 'text',
-      reactions: [{ emoji: '👍', userIds: ['me', 'u1'] }],
-      editedAt: null,
-      deletedAt: null,
-      createdAt: new Date(Date.now() - 3400000).toISOString(),
-    },
-  ] as Message[]
-
-  chat.messages['demo-2'] = [
-    {
-      id: 'm4',
-      conversationId: 'demo-2',
-      senderId: 'u2',
-      content: 'new map drops today',
-      type: 'text',
-      reactions: [],
-      editedAt: null,
-      deletedAt: null,
-      createdAt: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      id: 'm5',
-      conversationId: 'demo-2',
-      senderId: 'u3',
-      content: 'lets run it after school',
-      type: 'text',
-      reactions: [{ emoji: '❤️', userIds: ['u2'] }],
-      editedAt: null,
-      deletedAt: null,
-      createdAt: new Date(Date.now() - 7100000).toISOString(),
-    },
-  ] as Message[]
+function cachePeersFromConversations() {
+  for (const c of chat.conversations) {
+    if (c.peer) {
+      userCache.value[c.peer.id] = {
+        id: c.peer.id,
+        username: c.peer.username,
+        displayName: c.peer.displayName,
+        avatarUrl: c.peer.avatarUrl,
+        createdAt: '',
+      }
+    }
+  }
 }
 
 function getDisplayName(c: Conversation) {
   if (c.type === 'group') return c.name ?? 'Group chat'
-  const other = c.memberIds.find((id) => id !== auth.user?.id)
-  return other ? demoUsers[other]?.name ?? other : 'Chat'
+  return c.peer?.displayName ?? 'Chat'
 }
 
 function getAvatarUrl(c: Conversation) {
   if (c.type === 'group') return c.iconUrl
-  const other = c.memberIds.find((id) => id !== auth.user?.id)
-  return other ? demoUsers[other]?.avatar ?? null : null
+  return c.peer?.avatarUrl ?? null
 }
 
 function getPreview(c: Conversation) {
@@ -147,12 +90,16 @@ function getPreview(c: Conversation) {
 
 function getSenderName(id: string) {
   if (id === auth.user?.id) return auth.user.displayName
-  return demoUsers[id]?.name ?? id
+  return userCache.value[id]?.displayName ?? chat.conversations
+    .flatMap((c) => (c.peer ? [c.peer] : []))
+    .find((p) => p.id === id)?.displayName ?? 'User'
 }
 
 function getSenderAvatar(id: string) {
   if (id === auth.user?.id) return auth.user.avatarUrl
-  return demoUsers[id]?.avatar ?? null
+  return userCache.value[id]?.avatarUrl
+    ?? chat.conversations.flatMap((c) => (c.peer ? [c.peer] : [])).find((p) => p.id === id)?.avatarUrl
+    ?? null
 }
 
 const typingNames = computed(() =>
@@ -167,14 +114,15 @@ function onSelect(id: string) {
 }
 
 function onSend(content: string, replyToId?: string) {
-  if (editingId.value) {
-    chat.editMessage(editingId.value, content)
-    editingId.value = null
-    editText.value = ''
-    return
-  }
   chat.sendMessage(content, replyToId)
   replyTo.value = null
+}
+
+function onSaveEdit(content: string) {
+  if (editingMessage.value) {
+    chat.editMessage(editingMessage.value.id, content)
+    editingMessage.value = null
+  }
 }
 
 function onSendImage(file: File) {
@@ -183,18 +131,18 @@ function onSendImage(file: File) {
 
 function onTyping(isTyping: boolean) {
   if (chat.activeConversationId) {
-    ws.setTyping(chat.activeConversationId, isTyping)
+    chat.setTyping(chat.activeConversationId, isTyping)
   }
 }
 
 function startEdit(msg: Message) {
-  editingId.value = msg.id
-  editText.value = msg.content
+  replyTo.value = null
+  editingMessage.value = msg
 }
 
-function shouldShowAvatar(messages: Message[], index: number) {
-  if (index === messages.length - 1) return true
-  return messages[index + 1]?.senderId !== messages[index].senderId
+function isSeen(msg: Message) {
+  if (!chat.activeConversationId || !peerId.value) return false
+  return chat.isMessageSeen(chat.activeConversationId, msg.id, peerId.value)
 }
 </script>
 
@@ -230,15 +178,30 @@ function shouldShowAvatar(messages: Message[], index: number) {
             :src="getAvatarUrl(chat.activeConversation)"
             :name="getDisplayName(chat.activeConversation)"
             size="sm"
-            online
           />
           <div class="min-w-0 flex-1">
             <h1 class="truncate font-semibold">{{ getDisplayName(chat.activeConversation) }}</h1>
-            <p class="text-xs text-emerald-500">Active now</p>
+            <p
+              v-if="chat.activeConversation.peer"
+              class="text-xs text-text-secondary-light dark:text-text-secondary-dark"
+            >
+              @{{ chat.activeConversation.peer.username }}
+            </p>
           </div>
+          <LatencyBadge
+            :ws-rtt="chat.wsRtt"
+            :msg-rtt="chat.lastMessageRtt"
+            :api-rtt="chat.lastApiRtt"
+          />
         </header>
 
         <div class="scrollbar-thin flex-1 overflow-y-auto py-4">
+          <p
+            v-if="!chat.activeMessages.length"
+            class="px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark"
+          >
+            No messages yet. Say hi!
+          </p>
           <TransitionGroup name="message" tag="div" class="flex flex-col gap-1">
             <MessageBubble
               v-for="(msg, i) in chat.activeMessages"
@@ -248,9 +211,12 @@ function shouldShowAvatar(messages: Message[], index: number) {
               :sender-name="getSenderName(msg.senderId)"
               :sender-avatar="getSenderAvatar(msg.senderId)"
               :reply-to="msg.replyToId ? chat.activeMessages.find(m => m.id === msg.replyToId) ?? null : null"
-              :show-avatar="shouldShowAvatar(chat.activeMessages, i)"
+              :reply-to-name="msg.replyToId ? getSenderName(chat.activeMessages.find(m => m.id === msg.replyToId)?.senderId ?? '') : undefined"
+              :show-avatar="i === chat.activeMessages.length - 1 || chat.activeMessages[i + 1]?.senderId !== msg.senderId"
+              :seen="isSeen(msg)"
+              :is-last-own="msg.id === lastOwnMessageId"
               @react="(emoji) => chat.reactToMessage(msg.id, emoji)"
-              @reply="replyTo = msg"
+              @reply="replyTo = msg; editingMessage = null"
               @edit="startEdit(msg)"
               @delete="chat.deleteMessage(msg.id)"
             />
@@ -260,10 +226,13 @@ function shouldShowAvatar(messages: Message[], index: number) {
 
         <MessageInput
           :reply-to="replyTo"
+          :editing-message="editingMessage"
           @send="onSend"
+          @save-edit="onSaveEdit"
           @send-image="onSendImage"
           @typing="onTyping"
           @cancel-reply="replyTo = null"
+          @cancel-edit="editingMessage = null"
         />
       </template>
 
@@ -278,8 +247,14 @@ function shouldShowAvatar(messages: Message[], index: number) {
         </div>
         <h2 class="text-xl font-semibold">Select a chat</h2>
         <p class="max-w-sm text-text-secondary-light dark:text-text-secondary-dark">
-          Pick a conversation from the sidebar or add friends to start messaging.
+          Message a friend from the Friends page, or pick a conversation here.
         </p>
+        <RouterLink
+          to="/friends"
+          class="rounded-xl gradient-brand px-5 py-2.5 text-sm font-semibold text-white"
+        >
+          Go to Friends
+        </RouterLink>
       </div>
     </main>
   </div>
