@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Setting GitHub repository variables..."
 gh variable set BLINKR_PUBLIC_URL --body $PublicUrl
+gh variable set BLINKR_BETA_PUBLIC_URL --body "https://blinkr-beta.sortedsh.workers.dev"
 
 Write-Host "Setting GitHub secret CLOUDFLARE_ACCOUNT_ID..."
 gh secret set CLOUDFLARE_ACCOUNT_ID --body $CloudflareAccountId

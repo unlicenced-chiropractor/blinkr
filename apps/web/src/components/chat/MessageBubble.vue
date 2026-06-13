@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Message } from '@blinkr/shared'
 import { REACTION_EMOJIS } from '@blinkr/shared'
 import Avatar from '@/components/ui/Avatar.vue'
+import MessageContent from '@/components/chat/MessageContent.vue'
 import { mediaUrl } from '@/lib/media'
 
 const props = defineProps<{
@@ -88,9 +89,7 @@ const isDeleted = computed(() => !!props.message.deletedAt)
           class="mb-2 max-h-64 rounded-xl object-cover"
         />
         <p v-if="isDeleted" class="text-sm italic opacity-60">Message deleted</p>
-        <p v-else class="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-          {{ message.content }}
-        </p>
+        <MessageContent v-else :content="message.content" :is-own="isOwn" />
         <div
           class="mt-1 flex items-center gap-1.5"
           :class="isOwn ? 'justify-end text-white/70' : 'text-text-secondary-light dark:text-text-secondary-dark'"

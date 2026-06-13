@@ -4,11 +4,11 @@ compatibility_date = "2025-04-01"
 workers_dev = true
 
 # Custom domain — uncomment after the domain is on Cloudflare (orange cloud optional for Workers):
-# [[routes]]
-# pattern = "blinkr.yourdomain.com"
-# custom_domain = true
-#
-# Then set GitHub variable BLINKR_PUBLIC_URL to https://blinkr.yourdomain.com
+[[routes]]
+pattern = "blinkr.sortedsheep.org"
+custom_domain = true
+
+# Then set GitHub variable BLINKR_PUBLIC_URL to https://blinkr.sortedsheep.org
 # and rebuild (push to main or run scripts/deploy.ps1).
 
 [assets]
@@ -39,3 +39,34 @@ new_sqlite_classes = ["ChatRoom"]
 
 [dev]
 port = 8787
+
+# Beta worker — same D1 + B2 as production, separate URL for testing features.
+# Deploy: npx wrangler deploy --env beta  (or push to the `beta` branch)
+[env.beta]
+name = "blinkr-beta"
+workers_dev = true
+
+[env.beta.vars]
+ENVIRONMENT = "beta"
+B2_BUCKET_NAME = "blinkr-media"
+B2_BUCKET_ID = "87d98288ebb6bae191e10610"
+
+[env.beta.assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[env.beta.d1_databases]]
+binding = "DB"
+database_name = "blinkr-db"
+database_id = "cfe5b9dc-9381-4779-8b95-75870116fa9e"
+
+[env.beta.durable_objects]
+bindings = [
+  { name = "CHAT_ROOM", class_name = "ChatRoom" }
+]
+
+[[env.beta.migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatRoom"]
