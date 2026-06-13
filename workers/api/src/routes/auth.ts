@@ -48,6 +48,7 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
         username: body.username.toLowerCase(),
         displayName: body.displayName,
         avatarUrl: null,
+        bio: null,
         createdAt: new Date().toISOString(),
       },
     }, 201)
@@ -56,7 +57,7 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
   if (path === '/auth/login' && request.method === 'POST') {
     const body = await request.json<{ username: string; password: string }>()
     const user = await env.DB.prepare(
-      'SELECT id, username, display_name, password_hash, avatar_url, created_at FROM users WHERE username = ?',
+      'SELECT id, username, display_name, password_hash, avatar_url, bio, created_at FROM users WHERE username = ?',
     )
       .bind(body.username.toLowerCase())
       .first<{
@@ -65,6 +66,7 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
         display_name: string
         password_hash: string
         avatar_url: string | null
+        bio: string | null
         created_at: string
       }>()
 
@@ -85,13 +87,7 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
     const token = await signToken(user.id, env.JWT_SECRET)
     return json({
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.display_name,
-        avatarUrl: user.avatar_url,
-        createdAt: user.created_at,
-      },
+      user: formatUser(user),
     })
   }
 
@@ -129,14 +125,7 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
 
     if (!user) return error('User not found', 404)
 
-    return json({
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      avatarUrl: user.avatar_url,
-      bio: user.bio,
-      createdAt: user.created_at,
-    })
+    return json(formatUser(user))
   }
 
   if (path === '/auth/me' && request.method === 'GET') {
@@ -158,15 +147,77 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
 
     if (!user) return error('User not found', 404)
 
-    return json({
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      avatarUrl: user.avatar_url,
-      bio: user.bio,
-      createdAt: user.created_at,
-    })
+    return json(formatUser(user))
+  }
+
+  if (path === '/auth/profile' && request.method === 'PATCH') {
+    const userId = await getUserId(request, env)
+    if (!userId) return error('Unauthorized', 401)
+
+    const body = await request.json<{ displayName?: string; bio?: string | null }>()
+    const updates: string[] = []
+    const values: unknown[] = []
+
+    if (body.displayName !== undefined) {
+      const name = body.displayName.trim()
+      if (name.length < 1 || name.length > 50) {
+        return error('Display name must be 1–50 characters')
+      }
+      updates.push('display_name = ?')
+      values.push(name)
+    }
+
+    if (body.bio !== undefined) {
+      const bio = body.bio === null ? null : body.bio.trim()
+      if (bio && bio.length > 160) {
+        return error('Bio must be 160 characters or less')
+      }
+      updates.push('bio = ?')
+      values.push(bio || null)
+    }
+
+    if (!updates.length) return error('Nothing to update')
+
+    values.push(userId)
+    await env.DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
+      .bind(...values)
+      .run()
+
+    const user = await env.DB.prepare(
+      'SELECT id, username, display_name, avatar_url, bio, created_at FROM users WHERE id = ?',
+    )
+      .bind(userId)
+      .first<{
+        id: string
+        username: string
+        display_name: string
+        avatar_url: string | null
+        bio: string | null
+        created_at: string
+      }>()
+
+    if (!user) return error('User not found', 404)
+
+    return json(formatUser(user))
   }
 
   return null
+}
+
+function formatUser(user: {
+  id: string
+  username: string
+  display_name: string
+  avatar_url: string | null
+  bio: string | null
+  created_at: string
+}) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.display_name,
+    avatarUrl: user.avatar_url,
+    bio: user.bio,
+    createdAt: user.created_at,
+  }
 }

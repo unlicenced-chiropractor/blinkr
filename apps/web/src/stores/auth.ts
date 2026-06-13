@@ -98,6 +98,10 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await api.upload<User>('/auth/avatar', form)
   }
 
+  async function updateProfile(data: { displayName?: string; bio?: string | null }) {
+    user.value = await api.patch<User>('/auth/profile', data)
+  }
+
   return {
     user,
     token,
@@ -110,5 +114,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     enterDemoMode,
     uploadAvatar,
+    updateProfile,
   }
 })
