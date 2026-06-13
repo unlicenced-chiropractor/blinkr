@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck web app
+        run: npm run lint -w @blinkr/web
+
+      - name: Build web app
+        env:
+          VITE_API_URL: https://blinkr.sortedsh.workers.dev
+          VITE_WS_URL: wss://blinkr.sortedsh.workers.dev/ws
+        run: npm run build:production -w @blinkr/web
+
+      - name: Validate Worker bundle
+        working-directory: workers/api
+        run: npx wrangler deploy --dry-run
