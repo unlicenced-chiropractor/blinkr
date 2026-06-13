@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import BlinkrLogo from '@/components/ui/BlinkrLogo.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const username = ref('')
@@ -18,7 +19,8 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(username.value, password.value)
-    router.push('/chat')
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/chat'
+    router.push(redirect)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Login failed'
   } finally {

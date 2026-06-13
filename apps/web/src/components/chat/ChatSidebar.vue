@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import BlinkrLogo from '@/components/ui/BlinkrLogo.vue'
 import ThemeToggle from '@/components/ui/ThemeToggle.vue'
 import ConversationItem from '@/components/chat/ConversationItem.vue'
+import CreateGroupModal from '@/components/chat/CreateGroupModal.vue'
 import type { Conversation } from '@blinkr/shared'
 
 const props = defineProps<{
@@ -15,9 +16,10 @@ const props = defineProps<{
   getUnread?: (c: Conversation) => number
 }>()
 
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{ select: [id: string]; groupCreated: [id: string] }>()
 
 const searchQuery = ref('')
+const showCreateGroup = ref(false)
 
 const filteredConversations = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -36,6 +38,16 @@ const filteredConversations = computed(() => {
     <header class="flex items-center justify-between border-b border-border-light px-4 py-4 dark:border-border-dark">
       <BlinkrLogo size="sm" />
       <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="flex h-9 w-9 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark dark:hover:text-blink-400"
+          title="New group"
+          @click="showCreateGroup = true"
+        >
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
         <RouterLink
           to="/friends"
           class="flex h-9 w-9 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark"
@@ -93,4 +105,9 @@ const filteredConversations = computed(() => {
       </p>
     </div>
   </aside>
+
+  <CreateGroupModal
+    v-model:open="showCreateGroup"
+    @created="(id) => { emit('groupCreated', id); emit('select', id) }"
+  />
 </template>

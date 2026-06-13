@@ -67,3 +67,49 @@ export async function getOrCreateDirectConversation(
 
   return conversationId
 }
+
+const MAX_GROUP_MEMBERS = 50
+
+export async function createGroupConversation(
+  env: Env,
+  userId: string,
+  name: string,
+  memberIds: string[],
+): Promise<string> {
+  const trimmedName = name.trim()
+  if (trimmedName.length < 1 || trimmedName.length > 64) {
+    throw new Error('Group name must be 1–64 characters')
+  }
+
+  const uniqueMembers = [...new Set(memberIds.filter((id) => id !== userId))]
+  if (uniqueMembers.length < 1) {
+    throw new Error('Add at least one friend to the group')
+  }
+  if (uniqueMembers.length + 1 > MAX_GROUP_MEMBERS) {
+    throw new Error(`Groups can have at most ${MAX_GROUP_MEMBERS} members`)
+  }
+
+  for (const memberId of uniqueMembers) {
+    if (!(await areFriends(env, userId, memberId))) {
+      throw new Error('You can only add friends to a group')
+    }
+  }
+
+  const conversationId = id()
+  const now = new Date().toISOString()
+  const allMembers = [userId, ...uniqueMembers]
+
+  const statements = [
+    env.DB.prepare(
+      'INSERT INTO conversations (id, type, name, created_at) VALUES (?, ?, ?, ?)',
+    ).bind(conversationId, 'group', trimmedName, now),
+    ...allMembers.map((memberId) =>
+      env.DB.prepare(
+        'INSERT INTO conversation_members (conversation_id, user_id) VALUES (?, ?)',
+      ).bind(conversationId, memberId),
+    ),
+  ]
+
+  await env.DB.batch(statements)
+  return conversationId
+}

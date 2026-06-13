@@ -1,6 +1,15 @@
 name = "blinkr"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
+workers_dev = true
+
+# Custom domain — uncomment after the domain is on Cloudflare (orange cloud optional for Workers):
+# [[routes]]
+# pattern = "blinkr.yourdomain.com"
+# custom_domain = true
+#
+# Then set GitHub variable BLINKR_PUBLIC_URL to https://blinkr.yourdomain.com
+# and rebuild (push to main or run scripts/deploy.ps1).
 
 [assets]
 directory = "../../apps/web/dist"

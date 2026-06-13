@@ -2,6 +2,7 @@ import type { Env } from '../env'
 import { broadcastToConversation } from '../services/broadcast'
 import {
   areFriends,
+  createGroupConversation,
   getOrCreateDirectConversation,
   isConversationMember,
 } from '../services/conversations'
@@ -76,18 +77,43 @@ async function getPeerForDirect(env: Env, conversationId: string, userId: string
   }
 }
 
+async function getMembersForConversation(env: Env, conversationId: string) {
+  const { results } = await env.DB.prepare(`
+    SELECT u.id, u.username, u.display_name, u.avatar_url
+    FROM conversation_members cm
+    JOIN users u ON u.id = cm.user_id
+    WHERE cm.conversation_id = ?
+    ORDER BY u.display_name
+  `)
+    .bind(conversationId)
+    .all<{
+      id: string
+      username: string
+      display_name: string
+      avatar_url: string | null
+    }>()
+
+  return results.map((u) => ({
+    id: u.id,
+    username: u.username,
+    displayName: u.display_name,
+    avatarUrl: u.avatar_url,
+  }))
+}
+
 async function formatConversation(
   env: Env,
   c: Record<string, unknown>,
   userId: string,
 ) {
-  const { results: members } = await env.DB.prepare(
+  const { results: memberRows } = await env.DB.prepare(
     'SELECT user_id FROM conversation_members WHERE conversation_id = ?',
   )
     .bind(c.id)
     .all<{ user_id: string }>()
 
   const peer = c.type === 'direct' ? await getPeerForDirect(env, c.id as string, userId) : null
+  const members = c.type === 'group' ? await getMembersForConversation(env, c.id as string) : undefined
   const unreadCount = await getUnreadCount(env, c.id as string, userId)
 
   return {
@@ -95,7 +121,8 @@ async function formatConversation(
     type: c.type,
     name: c.name,
     iconUrl: c.icon_url,
-    memberIds: members.map((m) => m.user_id),
+    memberIds: memberRows.map((m) => m.user_id),
+    members,
     peer,
     unreadCount,
     lastMessageAt: c.last_message_at,
@@ -124,6 +151,29 @@ export async function handleConversations(request: Request, env: Env, path: stri
 
     if (!row) return error('Conversation not found', 404)
     return json(await formatConversation(env, row, userId))
+  }
+
+  if (path === '/conversations/group' && request.method === 'POST') {
+    const body = await request.json<{ name: string; memberIds: string[] }>()
+    if (!body.name?.trim()) return error('Group name required')
+    if (!Array.isArray(body.memberIds)) return error('memberIds required')
+
+    try {
+      const conversationId = await createGroupConversation(
+        env,
+        userId,
+        body.name,
+        body.memberIds,
+      )
+      const row = await env.DB.prepare('SELECT * FROM conversations WHERE id = ?')
+        .bind(conversationId)
+        .first()
+
+      if (!row) return error('Conversation not found', 404)
+      return json(await formatConversation(env, row, userId), 201)
+    } catch (e) {
+      return error(e instanceof Error ? e.message : 'Could not create group')
+    }
   }
 
   if (path === '/conversations' && request.method === 'GET') {

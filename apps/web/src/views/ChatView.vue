@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import type { Conversation, Message, User } from '@blinkr/shared'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
@@ -36,7 +36,6 @@ const lastOwnMessageId = computed(() => {
 })
 
 onMounted(async () => {
-  await auth.fetchMe()
   if (!auth.isAuthenticated) return
 
   chat.connect()
@@ -68,6 +67,17 @@ function cachePeersFromConversations() {
         createdAt: '',
       }
     }
+    if (c.members) {
+      for (const m of c.members) {
+        userCache.value[m.id] = {
+          id: m.id,
+          username: m.username,
+          displayName: m.displayName,
+          avatarUrl: m.avatarUrl,
+          createdAt: '',
+        }
+      }
+    }
   }
 }
 
@@ -84,23 +94,34 @@ function getAvatarUrl(c: Conversation) {
 function getPreview(c: Conversation) {
   const msgs = chat.messages[c.id]
   const last = msgs?.[msgs.length - 1]
-  if (!last) return ''
+  if (!last) return c.type === 'group' ? `${c.memberIds.length} members` : ''
   if (last.deletedAt) return 'Message deleted'
-  if (last.type === 'image') return '📷 Photo'
+  if (last.type === 'image') {
+    const label = '📷 Photo'
+    if (c.type === 'group' && last.senderId !== auth.user?.id) {
+      return `${getSenderName(last.senderId)}: ${label}`
+    }
+    return label
+  }
+  if (c.type === 'group' && last.senderId !== auth.user?.id) {
+    return `${getSenderName(last.senderId)}: ${last.content}`
+  }
   return last.content
 }
 
 function getSenderName(id: string) {
   if (id === auth.user?.id) return auth.user.displayName
-  return userCache.value[id]?.displayName ?? chat.conversations
-    .flatMap((c) => (c.peer ? [c.peer] : []))
-    .find((p) => p.id === id)?.displayName ?? 'User'
+  return userCache.value[id]?.displayName
+    ?? chat.activeConversation?.members?.find((m) => m.id === id)?.displayName
+    ?? chat.conversations.flatMap((c) => c.members ?? (c.peer ? [c.peer] : [])).find((p) => p.id === id)?.displayName
+    ?? 'User'
 }
 
 function getSenderAvatar(id: string) {
   if (id === auth.user?.id) return auth.user.avatarUrl
   return userCache.value[id]?.avatarUrl
-    ?? chat.conversations.flatMap((c) => (c.peer ? [c.peer] : [])).find((p) => p.id === id)?.avatarUrl
+    ?? chat.activeConversation?.members?.find((m) => m.id === id)?.avatarUrl
+    ?? chat.conversations.flatMap((c) => c.members ?? (c.peer ? [c.peer] : [])).find((p) => p.id === id)?.avatarUrl
     ?? null
 }
 
@@ -151,8 +172,15 @@ function startEdit(msg: Message) {
 }
 
 function isSeen(msg: Message) {
+  if (chat.activeConversation?.type === 'group') return false
   if (!chat.activeConversationId || !peerId.value) return false
   return chat.isMessageSeen(chat.activeConversationId, msg.id, peerId.value)
+}
+
+function onGroupCreated(id: string) {
+  cachePeersFromConversations()
+  chat.selectConversation(id)
+  showMobileSidebar.value = false
 }
 </script>
 
@@ -169,6 +197,7 @@ function isSeen(msg: Message) {
         :get-avatar-url="getAvatarUrl"
         :get-preview="getPreview"
         @select="onSelect"
+        @group-created="onGroupCreated"
       />
     </div>
 
@@ -192,7 +221,13 @@ function isSeen(msg: Message) {
           <div class="min-w-0 flex-1">
             <h1 class="truncate font-semibold">{{ getDisplayName(chat.activeConversation) }}</h1>
             <p
-              v-if="chat.activeConversation.peer"
+              v-if="chat.activeConversation.type === 'group'"
+              class="text-xs text-text-secondary-light dark:text-text-secondary-dark"
+            >
+              {{ chat.activeConversation.memberIds.length }} members
+            </p>
+            <p
+              v-else-if="chat.activeConversation.peer"
               class="text-xs text-text-secondary-light dark:text-text-secondary-dark"
             >
               @{{ chat.activeConversation.peer.username }}
@@ -203,6 +238,27 @@ function isSeen(msg: Message) {
             :msg-rtt="chat.lastMessageRtt"
             :api-rtt="chat.lastApiRtt"
           />
+          <div class="flex items-center gap-1 md:hidden">
+            <RouterLink
+              to="/friends"
+              class="flex h-9 w-9 items-center justify-center rounded-xl text-text-secondary-light hover:bg-elevated-light dark:text-text-secondary-dark dark:hover:bg-elevated-dark"
+              title="Friends"
+            >
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </RouterLink>
+            <RouterLink
+              to="/settings"
+              class="flex h-9 w-9 items-center justify-center rounded-xl text-text-secondary-light hover:bg-elevated-light dark:text-text-secondary-dark dark:hover:bg-elevated-dark"
+              title="Settings"
+            >
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </RouterLink>
+          </div>
         </header>
 
         <div class="scrollbar-thin flex-1 overflow-y-auto py-4">
@@ -222,7 +278,12 @@ function isSeen(msg: Message) {
               :sender-avatar="getSenderAvatar(msg.senderId)"
               :reply-to="msg.replyToId ? chat.activeMessages.find(m => m.id === msg.replyToId) ?? null : null"
               :reply-to-name="msg.replyToId ? getSenderName(chat.activeMessages.find(m => m.id === msg.replyToId)?.senderId ?? '') : undefined"
-              :show-avatar="i === chat.activeMessages.length - 1 || chat.activeMessages[i + 1]?.senderId !== msg.senderId"
+              :show-avatar="chat.activeConversation?.type === 'group'
+                ? msg.senderId !== auth.user?.id && (i === 0 || chat.activeMessages[i + 1]?.senderId !== msg.senderId)
+                : i === chat.activeMessages.length - 1 || chat.activeMessages[i + 1]?.senderId !== msg.senderId"
+              :show-sender-name="chat.activeConversation?.type === 'group'
+                && msg.senderId !== auth.user?.id
+                && (i === 0 || chat.activeMessages[i - 1]?.senderId !== msg.senderId)"
               :seen="isSeen(msg)"
               :is-last-own="msg.id === lastOwnMessageId"
               @react="(emoji) => chat.reactToMessage(msg.id, emoji)"

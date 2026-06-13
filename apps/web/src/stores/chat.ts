@@ -91,6 +91,13 @@ export const useChatStore = defineStore('chat', () => {
     return conv
   }
 
+  async function createGroup(name: string, memberIds: string[]) {
+    const conv = await api.post<Conversation>('/conversations/group', { name, memberIds })
+    conversations.value = [conv, ...conversations.value]
+    selectConversation(conv.id)
+    return conv
+  }
+
   async function sendMessage(content: string, replyToId?: string) {
     if (!activeConversationId.value || !content.trim()) return
     const apiStart = performance.now()
@@ -253,6 +260,7 @@ export const useChatStore = defineStore('chat', () => {
     loadConversations,
     loadMessages,
     openDirectChat,
+    createGroup,
     selectConversation,
     sendMessage,
     sendImage,

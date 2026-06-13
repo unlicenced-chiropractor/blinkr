@@ -9,6 +9,32 @@ import { cors, error } from './utils'
 
 export { ChatRoom }
 
+function isPageNavigation(request: Request): boolean {
+  const accept = request.headers.get('Accept') ?? ''
+  return request.method === 'GET' && accept.includes('text/html')
+}
+
+function withCacheHeaders(path: string, response: Response): Response {
+  const headers = new Headers(response.headers)
+
+  if (
+    path === '/'
+    || path.endsWith('.html')
+    || path.endsWith('/sw.js')
+    || path.endsWith('/registerSW.js')
+  ) {
+    headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+  } else if (path.startsWith('/assets/')) {
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') return cors()
@@ -24,18 +50,21 @@ export default {
     const mediaRes = await handleMedia(request, env, path)
     if (mediaRes) return mediaRes
 
-    const authRes = await handleAuth(request, env, path)
-    if (authRes) return authRes
+    if (!isPageNavigation(request)) {
+      const authRes = await handleAuth(request, env, path)
+      if (authRes) return authRes
 
-    const friendsRes = await handleFriends(request, env, path)
-    if (friendsRes) return friendsRes
+      const friendsRes = await handleFriends(request, env, path)
+      if (friendsRes) return friendsRes
 
-    const usersRes = await handleUsers(request, env, path)
-    if (usersRes) return usersRes
+      const usersRes = await handleUsers(request, env, path)
+      if (usersRes) return usersRes
 
-    const convRes = await handleConversations(request, env, path)
-    if (convRes) return convRes
+      const convRes = await handleConversations(request, env, path)
+      if (convRes) return convRes
+    }
 
-    return env.ASSETS.fetch(request)
+    const assetResponse = await env.ASSETS.fetch(request)
+    return withCacheHeaders(path, assetResponse)
   },
 }

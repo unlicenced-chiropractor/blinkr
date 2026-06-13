@@ -1,10 +1,12 @@
 import { useAuthStore } from '@/stores/auth'
+import { ApiError } from '@/lib/api-error'
 
 const BASE = import.meta.env.VITE_API_URL || '/api'
 
 async function request<T>(path: string, options: RequestInit & { signal?: AbortSignal } = {}): Promise<T> {
   const auth = useAuthStore()
   const headers: Record<string, string> = {
+    Accept: 'application/json',
   }
 
   if (options.body && !(options.body instanceof FormData)) {
@@ -15,14 +17,19 @@ async function request<T>(path: string, options: RequestInit & { signal?: AbortS
     headers['Authorization'] = `Bearer ${auth.token}`
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: { ...headers, ...(options.headers as Record<string, string>) },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...options,
+      headers: { ...headers, ...(options.headers as Record<string, string>) },
+    })
+  } catch {
+    throw new ApiError('Network error — check your connection', 0)
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error(err.message || 'Request failed')
+    throw new ApiError(err.message || 'Request failed', res.status)
   }
 
   if (res.status === 204) return undefined as T

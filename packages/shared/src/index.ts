@@ -45,6 +45,7 @@ export interface Conversation {
   name: string | null
   iconUrl: string | null
   memberIds: UserId[]
+  members?: ConversationPeer[]
   peer?: ConversationPeer | null
   unreadCount?: number
   lastMessageAt: string | null

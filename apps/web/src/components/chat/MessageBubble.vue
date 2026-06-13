@@ -13,6 +13,7 @@ const props = defineProps<{
   replyTo?: Message | null
   replyToName?: string
   showAvatar?: boolean
+  showSenderName?: boolean
   seen?: boolean
   isLastOwn?: boolean
 }>()
@@ -66,6 +67,13 @@ const isDeleted = computed(() => !!props.message.deletedAt)
           {{ replyTo.deletedAt ? 'Message deleted' : replyTo.content }}
         </p>
       </div>
+
+      <p
+        v-if="showSenderName && !isOwn"
+        class="mb-1 text-xs font-semibold text-blink-600 dark:text-blink-400"
+      >
+        {{ senderName }}
+      </p>
 
       <div
         class="relative rounded-2xl px-4 py-2.5 shadow-sm transition-transform duration-150 group-hover:scale-[1.01]"

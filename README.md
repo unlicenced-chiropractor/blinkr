@@ -92,25 +92,49 @@ Builds for Windows (.msi), macOS (.dmg), and Linux.
 
 ## Deployment
 
-### Web → Cloudflare Pages
+Blinkr ships as a single Cloudflare Worker (API + static site). Pushes to `main` deploy automatically once GitHub secrets are configured.
 
-```bash
-npm run build
-npx wrangler pages deploy apps/web/dist --project-name blinkr
+### One-time GitHub setup
+
+```powershell
+.\scripts\setup-github-infra.ps1
+gh secret set CLOUDFLARE_API_TOKEN   # Workers + D1 edit permissions
 ```
 
-Set environment variables: `VITE_API_URL`, `VITE_WS_URL`
+| GitHub config | Value |
+|---|---|
+| Variable `BLINKR_PUBLIC_URL` | `https://blinkr.sortedsh.workers.dev` (or your custom domain) |
+| Secret `CLOUDFLARE_ACCOUNT_ID` | Set by setup script |
+| Secret `CLOUDFLARE_API_TOKEN` | Cloudflare API token (you create this) |
 
-### API → Cloudflare Workers
+Worker secrets (set once via Wrangler, not GitHub):
 
 ```bash
 cd workers/api
-npx wrangler d1 create blinkr-db          # update wrangler.toml with database_id
-npx wrangler r2 bucket create blinkr-images
 npx wrangler secret put JWT_SECRET
-npm run db:migrate:remote
-npm run deploy
+npx wrangler secret put B2_APPLICATION_KEY_ID
+npx wrangler secret put B2_APPLICATION_KEY
 ```
+
+### Manual deploy
+
+```powershell
+.\scripts\deploy.ps1
+# or
+npm run deploy:migrate && npm run deploy
+```
+
+### Custom domain
+
+1. Add the domain to Cloudflare and uncomment `[[routes]]` in `workers/api/wrangler.toml`.
+2. Update `BLINKR_PUBLIC_URL` in GitHub (or pass `-PublicUrl` to `deploy.ps1`).
+3. Push to `main` or run deploy manually.
+
+### CI
+
+- **CI** (`.github/workflows/ci.yml`) — lint, build, Worker dry-run on PRs and `main`.
+- **Deploy** (`.github/workflows/deploy.yml`) — migrations + Worker deploy on push to `main`.
+- **Release** (`.github/workflows/release.yml`) — desktop + PWA builds on version tags (`v*`).
 
 ## Brand
 
