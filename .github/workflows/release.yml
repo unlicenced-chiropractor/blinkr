@@ -123,7 +123,7 @@ jobs:
 
       - name: Build Tauri (macOS)
         working-directory: apps/desktop
-        run: npm run tauri build --config src-tauri/tauri.ci.json
+        run: npx tauri build --config src-tauri/tauri.ci.json
 
       - name: Collect macOS disk image
         run: |
