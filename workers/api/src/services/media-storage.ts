@@ -13,6 +13,59 @@ function isImageFile(file: File): boolean {
   return file.type === '' || file.type === 'application/octet-stream'
 }
 
+/** D1 BLOB columns may come back as ArrayBuffer, typed arrays, or comma-separated strings. */
+function blobAsBytes(data: unknown): Uint8Array {
+  if (data instanceof Uint8Array) return data
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  if (ArrayBuffer.isView(data)) {
+    const view = data as ArrayBufferView
+    return new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+  }
+  if (Array.isArray(data)) {
+    return new Uint8Array(data)
+  }
+  if (typeof data === 'string') {
+    if (/^\d+(,\d+)*$/.test(data)) {
+      return new Uint8Array(data.split(',').map((n) => Number(n)))
+    }
+    const binary = atob(data)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+  }
+  throw new Error('Invalid blob data from storage')
+}
+
+async function getD1Media(
+  env: Env,
+  key: string,
+): Promise<{ contentType: string; data: Uint8Array } | null> {
+  const row = await env.DB.prepare(
+    'SELECT content_type, data FROM media_blobs WHERE key = ?',
+  )
+    .bind(key)
+    .first<{ content_type: string; data: unknown }>()
+
+  if (!row) return null
+  return { contentType: row.content_type, data: blobAsBytes(row.data) }
+}
+
+async function getFallbackMedia(
+  env: Env,
+  key: string,
+): Promise<{ contentType: string; data: Uint8Array } | null> {
+  const origin = env.MEDIA_FALLBACK_ORIGIN?.replace(/\/$/, '')
+  if (!origin) return null
+
+  const res = await fetch(`${origin}/media/${key}`)
+  if (!res.ok) return null
+
+  return {
+    contentType: res.headers.get('Content-Type') ?? 'application/octet-stream',
+    data: new Uint8Array(await res.arrayBuffer()),
+  }
+}
+
 export async function putMedia(
   env: Env,
   key: string,
@@ -32,26 +85,27 @@ export async function putMedia(
       data = excluded.data,
       created_at = excluded.created_at
   `)
-    .bind(key, contentType, data)
+    .bind(key, contentType, new Uint8Array(data))
     .run()
 }
 
 export async function getMedia(
   env: Env,
   key: string,
-): Promise<{ contentType: string; data: ArrayBuffer } | null> {
+): Promise<{ contentType: string; data: Uint8Array } | null> {
   if (isB2Enabled(env)) {
-    return getB2Object(env, key)
+    try {
+      const b2 = await getB2Object(env, key)
+      if (b2) return { contentType: b2.contentType, data: new Uint8Array(b2.data) }
+    } catch {
+      // Fall through to D1 / remote fallback
+    }
   }
 
-  const row = await env.DB.prepare(
-    'SELECT content_type, data FROM media_blobs WHERE key = ?',
-  )
-    .bind(key)
-    .first<{ content_type: string; data: ArrayBuffer }>()
+  const d1 = await getD1Media(env, key)
+  if (d1) return d1
 
-  if (!row) return null
-  return { contentType: row.content_type, data: row.data }
+  return getFallbackMedia(env, key)
 }
 
 export async function readImageFile(

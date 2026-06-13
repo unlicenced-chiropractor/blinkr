@@ -8,4 +8,6 @@ export interface Env {
   B2_APPLICATION_KEY?: string
   B2_BUCKET_NAME?: string
   B2_BUCKET_ID?: string
+  /** When set (beta), fetch /media from this origin if blob is missing locally. */
+  MEDIA_FALLBACK_ORIGIN?: string
 }

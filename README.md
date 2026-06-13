@@ -142,9 +142,39 @@ npm run deploy:migrate && npm run deploy
 
 ### CI
 
-- **CI** (`.github/workflows/ci.yml`) — lint, build, Worker dry-run on PRs and `main`.
+- **CI** (`.github/workflows/ci.yml`) — lint, build, Worker dry-run on PRs and `main` / `beta`.
 - **Deploy** (`.github/workflows/deploy.yml`) — migrations + Worker deploy on push to `main`.
+- **Deploy Beta** (`.github/workflows/deploy-beta.yml`) — same stack on push to `beta`.
 - **Release** (`.github/workflows/release.yml`) — desktop + PWA builds on version tags (`v*`).
+
+### Beta testing branch
+
+Use the `beta` branch to try features before they hit production. Beta deploys to a **separate Worker URL** but shares the **same D1 database and B2 bucket** — same accounts, friends, and message history.
+
+| | Production (`main`) | Beta (`beta`) |
+|---|---|---|
+| URL | `BLINKR_PUBLIC_URL` (e.g. blinkr.sortedsheep.org) | `https://blinkr-beta.sortedsh.workers.dev` |
+| Worker | `blinkr` | `blinkr-beta` |
+| Database | shared | shared |
+| Realtime WS | production DO | beta DO (use beta URL with other testers) |
+
+**Workflow:** develop on `beta` → test on the beta URL → merge `beta` → `main` when stable.
+
+```powershell
+git checkout beta
+git pull
+# ... make changes ...
+git push origin beta   # auto-deploys beta
+
+# One-time beta Worker secrets (same values as production):
+.\scripts\setup-beta-secrets.ps1
+
+# Or add to GitHub so every deploy syncs both Workers:
+.\scripts\setup-github-secrets.ps1
+
+# Manual beta deploy:
+.\scripts\deploy-beta.ps1
+```
 
 ## Brand
 

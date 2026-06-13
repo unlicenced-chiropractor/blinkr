@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2025-04-01"
 workers_dev = true
 
-# Custom domain
+# Custom domain (production only — beta must use routes = [] below)
 [[routes]]
 pattern = "blinkr.sortedsheep.org"
 custom_domain = true
@@ -16,7 +16,6 @@ run_worker_first = true
 
 [vars]
 ENVIRONMENT = "production"
-# Set after creating the bucket in Backblaze (Dashboard → Buckets → bucket details)
 B2_BUCKET_NAME = "blinkr-media"
 B2_BUCKET_ID = "87d98288ebb6bae191e10610"
 
@@ -47,6 +46,7 @@ routes = []
 ENVIRONMENT = "beta"
 B2_BUCKET_NAME = "blinkr-media"
 B2_BUCKET_ID = "87d98288ebb6bae191e10610"
+MEDIA_FALLBACK_ORIGIN = "https://blinkr.sortedsheep.org"
 
 [env.beta.assets]
 directory = "../../apps/web/dist"

@@ -8,16 +8,10 @@ if [ "${1:-}" = "--env" ] && [ -n "${2:-}" ]; then
   ENV_FLAG=(--env "$2")
 fi
 
-require() {
-  if [ -z "${!1:-}" ]; then
-    echo "::error::$1 is not set. Add it as a GitHub secret or export it locally."
-    exit 1
-  fi
-}
-
-require JWT_SECRET
-require B2_APPLICATION_KEY_ID
-require B2_APPLICATION_KEY
+if [ -z "${JWT_SECRET:-}" ]; then
+  echo "::error::JWT_SECRET is not set. Add it as a GitHub secret or export it locally."
+  exit 1
+fi
 
 put_secret() {
   local name="$1"
@@ -26,7 +20,12 @@ put_secret() {
 }
 
 put_secret JWT_SECRET "$JWT_SECRET"
-put_secret B2_APPLICATION_KEY_ID "$B2_APPLICATION_KEY_ID"
-put_secret B2_APPLICATION_KEY "$B2_APPLICATION_KEY"
+
+if [ -n "${B2_APPLICATION_KEY_ID:-}" ] && [ -n "${B2_APPLICATION_KEY:-}" ]; then
+  put_secret B2_APPLICATION_KEY_ID "$B2_APPLICATION_KEY_ID"
+  put_secret B2_APPLICATION_KEY "$B2_APPLICATION_KEY"
+else
+  echo "Skipping B2 secrets (not configured)."
+fi
 
 echo "Worker secrets synced (${ENV_FLAG[*]:-production})."

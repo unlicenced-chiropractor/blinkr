@@ -18,7 +18,8 @@
     "build:desktop:prod": "npm run build:production -w @blinkr/web && npm run tauri build -w @blinkr/desktop -- --config src-tauri/tauri.ci.json",
     "lint": "npm run lint -w @blinkr/web",
     "deploy": "npm run build:production -w @blinkr/web && npm run deploy -w @blinkr/api",
-    "deploy:migrate": "npm run db:migrate:remote -w @blinkr/api"
+    "deploy:migrate": "npm run db:migrate:remote -w @blinkr/api",
+    "deploy:beta": "powershell -ExecutionPolicy Bypass -File scripts/deploy-beta.ps1"
   },
   "engines": {
     "node": ">=20"
