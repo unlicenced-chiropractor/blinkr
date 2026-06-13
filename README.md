@@ -90,6 +90,16 @@ npm run dev:desktop
 
 Builds for Windows (.msi), macOS (.dmg), and Linux.
 
+### macOS install
+
+Release builds are ad-hoc signed (no Apple notarization). After installing from the DMG:
+
+1. Drag **Blinkr** to Applications
+2. First launch: right-click the app → **Open** → **Open**
+3. If macOS says the app is damaged: `xattr -cr /Applications/Blinkr.app`
+
+For a fully trusted install, the app needs Apple Developer ID signing and notarization in CI.
+
 ## Deployment
 
 Blinkr ships as a single Cloudflare Worker (API + static site). Pushes to `main` deploy automatically once GitHub secrets are configured.

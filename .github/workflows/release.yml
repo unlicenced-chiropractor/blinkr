@@ -125,6 +125,12 @@ jobs:
         working-directory: apps/desktop
         run: npx tauri build --config src-tauri/tauri.ci.json
 
+      - name: Verify macOS app signature
+        run: |
+          APP=$(find apps/desktop/src-tauri/target/release/bundle/macos -name "*.app" | head -1)
+          if [ -z "$APP" ]; then echo "App bundle not found"; exit 1; fi
+          codesign --verify --deep --strict "$APP"
+
       - name: Collect macOS disk image
         run: |
           DMG=$(find apps/desktop/src-tauri/target/release/bundle/dmg -name "*.dmg" | head -1)
@@ -168,6 +174,12 @@ jobs:
           - **Windows**: blinkr-windows-setup.exe
           - **macOS**: blinkr-macos.dmg
           - **ChromeOS / Web**: blinkr-chromeos-pwa.zip (PWA) or $BLINKR_PUBLIC_URL
+
+          ### macOS first launch
+          Blinkr is ad-hoc signed (not notarized). After installing from the DMG:
+          1. Drag Blinkr to Applications
+          2. First open: **right-click → Open → Open** (or System Settings → Privacy & Security → Open Anyway)
+          3. If you still see \"damaged\": \`xattr -cr /Applications/Blinkr.app\`
 
           ### Live API
           $BLINKR_PUBLIC_URL"
