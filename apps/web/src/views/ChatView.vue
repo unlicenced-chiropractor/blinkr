@@ -10,6 +10,7 @@ import MessageInput from '@/components/chat/MessageInput.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import Avatar from '@/components/ui/Avatar.vue'
 import LatencyBadge from '@/components/chat/LatencyBadge.vue'
+import { classifyFile, hasFilePayload, readTextFile } from '@/lib/drop-files'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -23,6 +24,11 @@ const userCache = ref<Record<string, User>>({})
 const imageUploadError = ref('')
 const imageUploading = ref(false)
 const sendError = ref('')
+const dropDepth = ref(0)
+const dropActive = computed(() => dropDepth.value > 0)
+const canAcceptDrop = computed(
+  () => chat.ready && chat.activeConversation && !editingMessage.value && !imageUploading.value,
+)
 
 const peerId = computed(() => chat.activeConversation?.peer?.id)
 
@@ -174,6 +180,60 @@ async function onSendImage(file: File) {
   }
 }
 
+function onDragEnter(e: DragEvent) {
+  if (!canAcceptDrop.value || !hasFilePayload(e.dataTransfer)) return
+  e.preventDefault()
+  dropDepth.value++
+}
+
+function onDragLeave(e: DragEvent) {
+  if (!canAcceptDrop.value) return
+  e.preventDefault()
+  dropDepth.value = Math.max(0, dropDepth.value - 1)
+}
+
+function onDragOver(e: DragEvent) {
+  if (!canAcceptDrop.value || !hasFilePayload(e.dataTransfer)) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+async function onDrop(e: DragEvent) {
+  dropDepth.value = 0
+  if (!canAcceptDrop.value) return
+  e.preventDefault()
+  const files = [...e.dataTransfer?.files ?? []]
+  if (!files.length) return
+  await handleDroppedFiles(files)
+}
+
+async function handleDroppedFiles(files: File[]) {
+  sendError.value = ''
+  imageUploadError.value = ''
+  const unsupported: string[] = []
+
+  for (const file of files) {
+    const kind = classifyFile(file)
+    try {
+      if (kind === 'image') {
+        await onSendImage(file)
+      } else if (kind === 'text') {
+        const content = await readTextFile(file)
+        await handleSend(content)
+      } else {
+        unsupported.push(file.name)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not send file'
+      imageUploadError.value = `${file.name}: ${msg}`
+    }
+  }
+
+  if (unsupported.length) {
+    imageUploadError.value = `Unsupported: ${unsupported.join(', ')} (try images or text files)`
+  }
+}
+
 function onTyping(isTyping: boolean) {
   if (chat.activeConversationId) {
     chat.setTyping(chat.activeConversationId, isTyping)
@@ -286,6 +346,28 @@ function onGroupCreated(id: string) {
           </div>
         </header>
 
+        <div
+          class="relative flex min-h-0 flex-1 flex-col"
+          @dragenter="onDragEnter"
+          @dragleave="onDragLeave"
+          @dragover="onDragOver"
+          @drop="onDrop"
+        >
+          <div
+            v-if="dropActive"
+            class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-blink-500/10 p-6 backdrop-blur-[2px]"
+          >
+            <div class="rounded-2xl border-2 border-dashed border-blink-500 bg-panel-light/90 px-8 py-6 text-center shadow-lg dark:bg-panel-dark/90">
+              <svg class="mx-auto mb-3 h-10 w-10 text-blink-600 dark:text-blink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <p class="font-semibold text-blink-600 dark:text-blink-400">Drop to send</p>
+              <p class="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                Images or text files (.txt, .md, .json, …)
+              </p>
+            </div>
+          </div>
+
         <div class="scrollbar-thin flex-1 overflow-y-auto py-4">
           <p
             v-if="!chat.activeMessages.length"
@@ -337,6 +419,7 @@ function onGroupCreated(id: string) {
           @cancel-reply="replyTo = null"
           @cancel-edit="editingMessage = null"
         />
+        </div>
       </template>
 
       <div
