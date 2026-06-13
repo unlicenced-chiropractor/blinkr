@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import type { Conversation, Message, User } from '@blinkr/shared'
 import { useAuthStore } from '@/stores/auth'
@@ -22,6 +22,7 @@ const showMobileSidebar = ref(true)
 const userCache = ref<Record<string, User>>({})
 const imageUploadError = ref('')
 const imageUploading = ref(false)
+const sendError = ref('')
 
 const peerId = computed(() => chat.activeConversation?.peer?.id)
 
@@ -35,25 +36,32 @@ const lastOwnMessageId = computed(() => {
   return null
 })
 
+function clearTyping() {
+  if (chat.activeConversationId) {
+    chat.setTyping(chat.activeConversationId, false)
+  }
+}
+
 onMounted(async () => {
   if (!auth.isAuthenticated) return
 
-  chat.connect()
-  const apiStart = performance.now()
-  await chat.loadConversations()
-  chat.lastApiRtt = Math.round(performance.now() - apiStart)
-
   const openId = route.query.conversation as string | undefined
-  if (openId && chat.conversations.some((c) => c.id === openId)) {
-    chat.selectConversation(openId)
+  await chat.initialize({ conversationId: openId })
+
+  if (openId) {
     showMobileSidebar.value = false
     router.replace({ query: {} })
-  } else if (chat.conversations.length) {
-    chat.selectConversation(chat.conversations[0].id)
+  } else if (chat.activeConversationId) {
     showMobileSidebar.value = false
   }
 
   cachePeersFromConversations()
+  window.addEventListener('pagehide', clearTyping)
+})
+
+onBeforeUnmount(clearTyping)
+onUnmounted(() => {
+  window.removeEventListener('pagehide', clearTyping)
 })
 
 function cachePeersFromConversations() {
@@ -136,9 +144,15 @@ function onSelect(id: string) {
   showMobileSidebar.value = false
 }
 
-function onSend(content: string, replyToId?: string) {
-  chat.sendMessage(content, replyToId)
-  replyTo.value = null
+async function handleSend(content: string, replyToId?: string) {
+  sendError.value = ''
+  try {
+    await chat.sendMessage(content, replyToId)
+    replyTo.value = null
+  } catch (err) {
+    sendError.value = err instanceof Error ? err.message : 'Failed to send message'
+    throw err
+  }
 }
 
 function onSaveEdit(content: string) {
@@ -179,8 +193,9 @@ function isSeen(msg: Message) {
 
 function onGroupCreated(id: string) {
   cachePeersFromConversations()
-  chat.selectConversation(id)
-  showMobileSidebar.value = false
+  void chat.selectConversation(id).then(() => {
+    showMobileSidebar.value = false
+  })
 }
 </script>
 
@@ -202,7 +217,17 @@ function onGroupCreated(id: string) {
     </div>
 
     <main class="flex min-w-0 flex-1 flex-col">
-      <template v-if="chat.activeConversation">
+      <div
+        v-if="!chat.ready"
+        class="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center"
+      >
+        <div class="h-8 w-8 animate-spin rounded-full border-2 border-blink-500 border-t-transparent" />
+        <p class="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+          Connecting and loading chats…
+        </p>
+      </div>
+
+      <template v-else-if="chat.activeConversation">
         <header class="flex items-center gap-3 border-b border-border-light bg-panel-light/80 px-4 py-3 backdrop-blur-xl dark:border-border-dark dark:bg-panel-dark/80">
           <button
             type="button"
@@ -295,6 +320,9 @@ function onGroupCreated(id: string) {
           <TypingIndicator v-if="typingNames.length" :names="typingNames" />
         </div>
 
+        <p v-if="sendError" class="border-t border-border-light px-4 py-2 text-sm text-red-500 dark:border-border-dark">
+          {{ sendError }}
+        </p>
         <p v-if="imageUploadError" class="border-t border-border-light px-4 py-2 text-sm text-red-500 dark:border-border-dark">
           {{ imageUploadError }}
         </p>
@@ -302,7 +330,7 @@ function onGroupCreated(id: string) {
           :reply-to="replyTo"
           :editing-message="editingMessage"
           :disabled="imageUploading"
-          @send="onSend"
+          :on-send="handleSend"
           @save-edit="onSaveEdit"
           @send-image="onSendImage"
           @typing="onTyping"

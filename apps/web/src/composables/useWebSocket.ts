@@ -8,8 +8,9 @@ interface WsHandlers {
   onMessageUpdated: (msg: Message) => void
   onMessageDeleted: (messageId: string, conversationId: string) => void
   onTyping: (state: TypingState) => void
-      onReadReceipt: (receipt: { userId: string; messageId: string; readAt: string; conversationId?: string }) => void
+  onReadReceipt: (receipt: { userId: string; messageId: string; readAt: string; conversationId?: string }) => void
   onPong?: () => void
+  onAuthenticated?: () => void
 }
 
 // Singleton — one socket shared across the whole app
@@ -18,10 +19,17 @@ let handlers: WsHandlers | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let token: string | null = null
 let isAuthenticated = false
+let authWaiters: Array<(ok: boolean) => void> = []
 const subscribed = new Set<string>()
 const pendingSubscribe = new Set<string>()
 
 const isConnected = ref(false)
+const wsAuthenticated = ref(false)
+
+function resolveAuthWaiters(ok: boolean) {
+  for (const resolve of authWaiters) resolve(ok)
+  authWaiters = []
+}
 
 function send(msg: WsClientMessage) {
   if (socket?.readyState === WebSocket.OPEN) {
@@ -40,10 +48,29 @@ function flushSubscriptions() {
   pendingSubscribe.clear()
 }
 
+function whenAuthenticated(timeoutMs = 8000): Promise<boolean> {
+  if (isAuthenticated && socket?.readyState === WebSocket.OPEN) {
+    return Promise.resolve(true)
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      authWaiters = authWaiters.filter((r) => r !== done)
+      resolve(false)
+    }, timeoutMs)
+    const done = (ok: boolean) => {
+      clearTimeout(timer)
+      resolve(ok)
+    }
+    authWaiters.push(done)
+  })
+}
+
 function connect(authToken: string, h: WsHandlers) {
   token = authToken
   handlers = h
   isAuthenticated = false
+  wsAuthenticated.value = false
+  resolveAuthWaiters(false)
 
   if (socket) {
     socket.close()
@@ -61,7 +88,10 @@ function connect(authToken: string, h: WsHandlers) {
     switch (data.type) {
       case 'authenticated':
         isAuthenticated = true
+        wsAuthenticated.value = true
         flushSubscriptions()
+        handlers?.onAuthenticated?.()
+        resolveAuthWaiters(true)
         break
       case 'message':
         handlers?.onMessage(data.message)
@@ -87,6 +117,8 @@ function connect(authToken: string, h: WsHandlers) {
   socket.onclose = () => {
     isConnected.value = false
     isAuthenticated = false
+    wsAuthenticated.value = false
+    resolveAuthWaiters(false)
     reconnectTimer = setTimeout(() => {
       if (token && handlers) connect(token, handlers)
     }, 3000)
@@ -129,12 +161,15 @@ function disconnect() {
   socket?.close()
   socket = null
   isAuthenticated = false
+  wsAuthenticated.value = false
   isConnected.value = false
+  resolveAuthWaiters(false)
 }
 
 export function useWebSocket() {
   return {
     isConnected,
+    wsAuthenticated,
     connect,
     subscribe,
     unsubscribe,
@@ -142,5 +177,6 @@ export function useWebSocket() {
     markRead,
     ping,
     disconnect,
+    whenAuthenticated,
   }
 }

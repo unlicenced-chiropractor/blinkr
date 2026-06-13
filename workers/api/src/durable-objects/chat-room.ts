@@ -121,6 +121,18 @@ export class ChatRoom implements DurableObject {
     })
 
     ws.addEventListener('close', () => {
+      if (session.userId) {
+        for (const conversationId of session.subscribedConversations) {
+          this.broadcastToConversation(conversationId, {
+            type: 'typing',
+            state: {
+              conversationId,
+              userId: session.userId,
+              isTyping: false,
+            },
+          })
+        }
+      }
       this.clients.delete(session)
     })
   }

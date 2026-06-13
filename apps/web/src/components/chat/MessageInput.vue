@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onBeforeUnmount } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import type { Message } from '@blinkr/shared'
 
@@ -7,10 +7,10 @@ const props = defineProps<{
   replyTo?: Message | null
   editingMessage?: Message | null
   disabled?: boolean
+  onSend?: (content: string, replyToId?: string) => Promise<void>
 }>()
 
 const emit = defineEmits<{
-  send: [content: string, replyToId?: string]
   saveEdit: [content: string]
   sendImage: [file: File]
   typing: [isTyping: boolean]
@@ -19,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const text = ref('')
+const sending = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraInput = ref<HTMLInputElement | null>(null)
 
@@ -38,17 +39,29 @@ watch(text, (val) => {
   }
 })
 
-function submit() {
+onBeforeUnmount(() => {
+  emit('typing', false)
+})
+
+async function submit() {
   const content = text.value.trim()
-  if (!content) return
+  if (!content || props.disabled) return
   if (props.editingMessage) {
     emit('saveEdit', content)
     text.value = ''
     return
   }
-  emit('send', content, props.replyTo?.id)
-  text.value = ''
-  emit('typing', false)
+  try {
+    if (!props.onSend) return
+    sending.value = true
+    await props.onSend(content, props.replyTo?.id)
+    text.value = ''
+    emit('typing', false)
+  } catch {
+    // keep draft on failure
+  } finally {
+    sending.value = false
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -155,7 +168,7 @@ function onFileChange(e: Event) {
       <button
         type="button"
         class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gradient-brand text-white shadow-md shadow-blink-600/30 transition hover:scale-105 active:scale-95 disabled:opacity-40"
-        :disabled="!text.trim()"
+        :disabled="!text.trim() || disabled || sending"
         @click="submit"
       >
         <svg v-if="editingMessage" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

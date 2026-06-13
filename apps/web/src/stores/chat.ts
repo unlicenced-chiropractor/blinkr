@@ -12,11 +12,14 @@ export const useChatStore = defineStore('chat', () => {
   const activeConversationId = ref<string | null>(null)
   const typingUsers = ref<Record<string, UserId[]>>({})
   const readReceipts = ref<Record<string, Record<string, string>>>({})
+  const ready = ref(false)
   const wsRtt = ref<number | null>(null)
   const lastMessageRtt = ref<number | null>(null)
   const lastApiRtt = ref<number | null>(null)
   let pingSentAt = 0
   let pingTimer: ReturnType<typeof setInterval> | null = null
+  let apiPingTimer: ReturnType<typeof setInterval> | null = null
+  let wsPingReady = false
 
   const auth = useAuthStore()
   const ws = useWebSocket()
@@ -38,12 +41,12 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadMessages(conversationId: string) {
-    messages.value[conversationId] = await api.get<Message[]>(
-      `/conversations/${conversationId}/messages`,
-    )
-    readReceipts.value[conversationId] = await api.get<Record<string, string>>(
-      `/conversations/${conversationId}/read-receipts`,
-    )
+    const [msgs, receipts] = await Promise.all([
+      api.get<Message[]>(`/conversations/${conversationId}/messages`),
+      api.get<Record<string, string>>(`/conversations/${conversationId}/read-receipts`),
+    ])
+    messages.value[conversationId] = msgs
+    readReceipts.value[conversationId] = receipts
     await markActiveConversationRead()
   }
 
@@ -70,13 +73,34 @@ export const useChatStore = defineStore('chat', () => {
     ws.markRead(conversationId, messageId)
   }
 
-  function selectConversation(id: string) {
+  async function selectConversation(id: string) {
     if (activeConversationId.value && activeConversationId.value !== id) {
       ws.unsubscribe(activeConversationId.value)
     }
     activeConversationId.value = id
     ws.subscribe(id)
-    loadMessages(id)
+    await loadMessages(id)
+  }
+
+  async function initialize(options?: { conversationId?: string }) {
+    if (!auth.token) return
+    ready.value = false
+
+    connect()
+    await Promise.all([
+      loadConversations(),
+      ws.whenAuthenticated(),
+    ])
+
+    const preferred = options?.conversationId
+    if (preferred && conversations.value.some((c) => c.id === preferred)) {
+      await selectConversation(preferred)
+    } else if (conversations.value.length) {
+      await selectConversation(conversations.value[0].id)
+    }
+
+    ready.value = true
+    startApiHealthMonitor()
   }
 
   async function openDirectChat(friendId: string) {
@@ -87,38 +111,46 @@ export const useChatStore = defineStore('chat', () => {
     } else {
       Object.assign(existing, conv)
     }
-    selectConversation(conv.id)
+    await selectConversation(conv.id)
     return conv
   }
 
   async function createGroup(name: string, memberIds: string[]) {
     const conv = await api.post<Conversation>('/conversations/group', { name, memberIds })
     conversations.value = [conv, ...conversations.value]
-    selectConversation(conv.id)
+    await selectConversation(conv.id)
     return conv
   }
 
   async function sendMessage(content: string, replyToId?: string) {
-    if (!activeConversationId.value || !content.trim()) return
+    if (!activeConversationId.value || !content.trim()) {
+      throw new Error('No conversation selected')
+    }
     const apiStart = performance.now()
     const msg = await api.post<Message>(
       `/conversations/${activeConversationId.value}/messages`,
       { content, replyToId },
     )
-    lastApiRtt.value = Math.round(performance.now() - apiStart)
+    const rtt = Math.round(performance.now() - apiStart)
+    lastApiRtt.value = rtt
+    lastMessageRtt.value = rtt
     appendMessage(msg)
   }
 
   async function sendImage(file: File, caption?: string) {
-    if (!activeConversationId.value) return
+    if (!activeConversationId.value) throw new Error('No conversation selected')
     const compressed = await compressImage(file, CHAT_IMAGE_OPTIONS)
     const form = new FormData()
     form.append('image', compressed)
     if (caption) form.append('caption', caption)
+    const apiStart = performance.now()
     const msg = await api.upload<Message>(
       `/conversations/${activeConversationId.value}/messages/image`,
       form,
     )
+    const rtt = Math.round(performance.now() - apiStart)
+    lastApiRtt.value = rtt
+    lastMessageRtt.value = rtt
     appendMessage(msg)
   }
 
@@ -212,11 +244,28 @@ export const useChatStore = defineStore('chat', () => {
   function startLatencyMonitor() {
     if (pingTimer) return
     const ping = () => {
+      if (!ws.wsAuthenticated.value) return
       pingSentAt = performance.now()
       ws.ping()
     }
+    wsPingReady = true
     ping()
     pingTimer = setInterval(ping, 2000)
+  }
+
+  function startApiHealthMonitor() {
+    if (apiPingTimer) return
+    const ping = async () => {
+      const start = performance.now()
+      try {
+        await api.get<{ ok: boolean }>('/health')
+        lastApiRtt.value = Math.round(performance.now() - start)
+      } catch {
+        // keep last reading on transient failures
+      }
+    }
+    ping()
+    apiPingTimer = setInterval(ping, 5000)
   }
 
   function connect() {
@@ -242,8 +291,10 @@ export const useChatStore = defineStore('chat', () => {
           pingSentAt = 0
         }
       },
+      onAuthenticated: () => {
+        if (!wsPingReady) startLatencyMonitor()
+      },
     })
-    startLatencyMonitor()
   }
 
   return {
@@ -254,11 +305,13 @@ export const useChatStore = defineStore('chat', () => {
     activeMessages,
     activeTypingUsers,
     readReceipts,
+    ready,
     wsRtt,
     lastMessageRtt,
     lastApiRtt,
     loadConversations,
     loadMessages,
+    initialize,
     openDirectChat,
     createGroup,
     selectConversation,

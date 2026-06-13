@@ -42,6 +42,12 @@ export default {
     const url = new URL(request.url)
     const path = url.pathname
 
+    if (path === '/health' && request.method === 'GET') {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      })
+    }
+
     if (path === '/ws' && request.headers.get('Upgrade') === 'websocket') {
       const globalRoom = env.CHAT_ROOM.get(env.CHAT_ROOM.idFromName('global'))
       return globalRoom.fetch(request)

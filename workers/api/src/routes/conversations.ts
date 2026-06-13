@@ -185,10 +185,9 @@ export async function handleConversations(request: Request, env: Env, path: stri
       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
     `).bind(userId).all()
 
-    const conversations = []
-    for (const c of results) {
-      conversations.push(await formatConversation(env, c, userId))
-    }
+    const conversations = await Promise.all(
+      results.map((c) => formatConversation(env, c, userId)),
+    )
 
     return json(conversations)
   }
@@ -230,10 +229,9 @@ export async function handleConversations(request: Request, env: Env, path: stri
       .bind(conversationId, HISTORY_FETCH_LIMIT)
       .all()
 
-    const messages = []
-    for (const row of results.reverse()) {
-      messages.push(await formatMessage(env, row))
-    }
+    const messages = await Promise.all(
+      results.reverse().map((row) => formatMessage(env, row)),
+    )
     return json(messages)
   }
 

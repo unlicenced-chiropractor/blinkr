@@ -16,7 +16,7 @@ function color(ms: number | null) {
 <template>
   <div
     class="flex items-center gap-2 rounded-xl bg-elevated-light px-2.5 py-1 font-mono text-[11px] dark:bg-elevated-dark"
-    title="Live latency — WS ping, last message delivery, last API call"
+    title="Live latency — WS ping, last message round-trip, API health ping"
   >
     <span :class="color(wsRtt)">
       ws {{ wsRtt ?? '—' }}ms
