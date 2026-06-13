@@ -3,13 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2025-04-01"
 workers_dev = true
 
-# Custom domain — uncomment after the domain is on Cloudflare (orange cloud optional for Workers):
+# Custom domain (production only — beta must use routes = [] below)
 [[routes]]
 pattern = "blinkr.sortedsheep.org"
 custom_domain = true
-
-# Then set GitHub variable BLINKR_PUBLIC_URL to https://blinkr.sortedsheep.org
-# and rebuild (push to main or run scripts/deploy.ps1).
 
 [assets]
 directory = "../../apps/web/dist"
@@ -19,7 +16,6 @@ run_worker_first = true
 
 [vars]
 ENVIRONMENT = "production"
-# Set after creating the bucket in Backblaze (Dashboard → Buckets → bucket details)
 B2_BUCKET_NAME = "blinkr-media"
 B2_BUCKET_ID = "87d98288ebb6bae191e10610"
 
@@ -40,8 +36,7 @@ new_sqlite_classes = ["ChatRoom"]
 [dev]
 port = 8787
 
-# Beta worker — same D1 + B2 as production, separate URL for testing features.
-# Deploy: npx wrangler deploy --env beta  (or push to the `beta` branch)
+# Beta worker — same D1/B2, workers.dev only (must NOT inherit production routes).
 [env.beta]
 name = "blinkr-beta"
 workers_dev = true
