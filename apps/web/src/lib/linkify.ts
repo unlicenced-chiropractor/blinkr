@@ -2,11 +2,14 @@ export type TextSegment =
   | { type: 'text'; text: string }
   | { type: 'link'; text: string; href: string }
 
-// http(s) URLs and bare www. domains
-const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>"']+/gi
+// https://…, www.…, or bare domains like sortedsheep.org / blinkr.sortedsheep.org
+const URL_PATTERN =
+  /\b(?:https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>"']*)?)/gi
 
 function normalizeHref(url: string): string {
-  return url.startsWith('www.') ? `https://${url}` : url
+  if (/^https?:\/\//i.test(url)) return url
+  if (url.startsWith('www.')) return `https://${url}`
+  return `https://${url}`
 }
 
 function splitTrailingPunctuation(url: string): { href: string; trailing: string } {
@@ -22,6 +25,10 @@ function splitTrailingPunctuation(url: string): { href: string; trailing: string
   return { href, trailing }
 }
 
+function isEmailLocalPart(text: string, start: number): boolean {
+  return start > 0 && text[start - 1] === '@'
+}
+
 export function linkify(text: string): TextSegment[] {
   if (!text) return []
 
@@ -31,6 +38,7 @@ export function linkify(text: string): TextSegment[] {
   for (const match of text.matchAll(URL_PATTERN)) {
     const raw = match[0]
     const start = match.index ?? 0
+    if (isEmailLocalPart(text, start)) continue
     if (start > lastIndex) {
       segments.push({ type: 'text', text: text.slice(lastIndex, start) })
     }
