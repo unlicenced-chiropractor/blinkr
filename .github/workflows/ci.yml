@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, beta]
   push:
-    branches: [main]
+    branches: [main, beta]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,6 +34,8 @@ jobs:
           VITE_WS_URL: wss://blinkr.sortedsh.workers.dev/ws
         run: npm run build:production -w @blinkr/web
 
-      - name: Validate Worker bundle
+      - name: Validate Worker bundles
         working-directory: workers/api
-        run: npx wrangler deploy --dry-run
+        run: |
+          npx wrangler deploy --dry-run
+          npx wrangler deploy --dry-run --env beta
