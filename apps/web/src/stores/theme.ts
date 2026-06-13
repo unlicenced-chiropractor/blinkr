@@ -5,7 +5,7 @@ import { usePreferredDark } from '@vueuse/core'
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 export const useThemeStore = defineStore('theme', () => {
-  const mode = ref<ThemeMode>((localStorage.getItem('blinkr-theme') as ThemeMode) || 'system')
+  const mode = ref<ThemeMode>((localStorage.getItem('blinkr-theme') as ThemeMode) || 'dark')
   const prefersDark = usePreferredDark()
 
   const isDark = ref(false)

@@ -22,8 +22,8 @@ export default defineConfig({
         name: 'Blinkr',
         short_name: 'Blinkr',
         description: 'Fast, modern text messaging',
-        theme_color: '#7c3aed',
-        background_color: '#0f0a1a',
+        theme_color: '#000000',
+        background_color: '#000000',
         display: 'standalone',
         icons: [
           { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },

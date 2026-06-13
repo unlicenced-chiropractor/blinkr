@@ -31,8 +31,8 @@ async function submit() {
 <template>
   <div class="relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
     <div class="pointer-events-none absolute inset-0">
-      <div class="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-blink-600/20 blur-3xl" />
-      <div class="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-accent/20 blur-3xl" />
+      <div class="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-white/5 blur-3xl dark:bg-white/[0.03]" />
+      <div class="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-blink-600/10 blur-3xl dark:bg-blink-600/[0.06]" />
     </div>
 
     <div class="absolute right-4 top-4">
