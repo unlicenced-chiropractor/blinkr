@@ -5,7 +5,7 @@ import { handleConversations } from './routes/conversations'
 import { handleFriends } from './routes/friends'
 import { handleMedia } from './routes/media'
 import { handleUsers } from './routes/users'
-import { cors, error } from './utils'
+import { cors, error, json } from './utils'
 
 export { ChatRoom }
 
@@ -43,9 +43,9 @@ export default {
     const path = url.pathname
 
     if (path === '/health' && request.method === 'GET') {
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      })
+      const res = json({ ok: true })
+      res.headers.set('Cache-Control', 'no-store')
+      return res
     }
 
     if (path === '/ws' && request.headers.get('Upgrade') === 'websocket') {
