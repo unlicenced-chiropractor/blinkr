@@ -46,6 +46,7 @@ routes = []
 ENVIRONMENT = "beta"
 B2_BUCKET_NAME = "blinkr-media"
 B2_BUCKET_ID = "87d98288ebb6bae191e10610"
+MEDIA_FALLBACK_ORIGIN = "https://blinkr.sortedsheep.org"
 
 [env.beta.assets]
 directory = "../../apps/web/dist"

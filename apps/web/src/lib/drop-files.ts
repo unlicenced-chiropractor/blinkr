@@ -25,7 +25,14 @@ export async function readTextFile(file: File): Promise<string> {
 
 export function hasFilePayload(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer) return false
+  if ([...dataTransfer.types].includes('Files')) return true
   return [...dataTransfer.items].some((item) => item.kind === 'file')
+}
+
+export function isWithinDropZone(e: DragEvent): boolean {
+  const container = e.currentTarget as HTMLElement | null
+  const related = e.relatedTarget as Node | null
+  return Boolean(container && related && container.contains(related))
 }
 
 export type DroppedFileKind = 'image' | 'text' | 'unsupported'

@@ -10,7 +10,7 @@ import MessageInput from '@/components/chat/MessageInput.vue'
 import TypingIndicator from '@/components/chat/TypingIndicator.vue'
 import Avatar from '@/components/ui/Avatar.vue'
 import LatencyBadge from '@/components/chat/LatencyBadge.vue'
-import { classifyFile, hasFilePayload, readTextFile } from '@/lib/drop-files'
+import { classifyFile, hasFilePayload, isWithinDropZone, readTextFile } from '@/lib/drop-files'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -182,26 +182,28 @@ async function onSendImage(file: File) {
 
 function onDragEnter(e: DragEvent) {
   if (!canAcceptDrop.value || !hasFilePayload(e.dataTransfer)) return
+  if (isWithinDropZone(e)) return
   e.preventDefault()
   dropDepth.value++
 }
 
 function onDragLeave(e: DragEvent) {
   if (!canAcceptDrop.value) return
+  if (isWithinDropZone(e)) return
   e.preventDefault()
   dropDepth.value = Math.max(0, dropDepth.value - 1)
 }
 
 function onDragOver(e: DragEvent) {
-  if (!canAcceptDrop.value || !hasFilePayload(e.dataTransfer)) return
+  if (!hasFilePayload(e.dataTransfer)) return
   e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  if (canAcceptDrop.value && e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
 }
 
 async function onDrop(e: DragEvent) {
   dropDepth.value = 0
-  if (!canAcceptDrop.value) return
   e.preventDefault()
+  if (!canAcceptDrop.value) return
   const files = [...e.dataTransfer?.files ?? []]
   if (!files.length) return
   await handleDroppedFiles(files)
