@@ -30,6 +30,7 @@ async function onAvatarChange(e: Event) {
     uploadError.value = err instanceof Error ? err.message : 'Upload failed'
   } finally {
     uploading.value = false
+    if (avatarInput.value) avatarInput.value.value = ''
   }
 }
 </script>

@@ -22,7 +22,7 @@ Fast, modern text messaging — web, desktop, and PWA. Built for teenagers and y
 | Backend | Cloudflare Workers |
 | Database | Cloudflare D1 (SQLite) |
 | Real-time | Durable Objects + WebSockets |
-| Media | Cloudflare R2 |
+| Media | Backblaze B2 (avatars & chat images; D1 fallback for local dev) |
 | Push | Web Push (PWA) + Tauri notifications (desktop) |
 
 ## Features

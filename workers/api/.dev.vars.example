@@ -1,1 +1,7 @@
 JWT_SECRET=dev-secret-change-in-production
+
+# Optional — leave unset for local dev (uses D1 blob storage instead)
+# B2_APPLICATION_KEY_ID=
+# B2_APPLICATION_KEY=
+# B2_BUCKET_NAME=blinkr-media
+# B2_BUCKET_ID=

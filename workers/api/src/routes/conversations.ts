@@ -6,6 +6,12 @@ import {
   isConversationMember,
 } from '../services/conversations'
 import {
+  MAX_MESSAGE_IMAGE_BYTES,
+  mediaPath,
+  putMedia,
+  readImageFile,
+} from '../services/media-storage'
+import {
   HISTORY_FETCH_LIMIT,
   pruneConversationMessages,
 } from '../services/message-retention'
@@ -234,18 +240,18 @@ export async function handleConversations(request: Request, env: Env, path: stri
     const caption = (form.get('caption') as string) ?? ''
 
     if (!image) return error('No image provided')
-    if (!env.IMAGES) return error('Image storage not configured', 503)
+
+    const parsed = await readImageFile(image, MAX_MESSAGE_IMAGE_BYTES)
+    if (parsed instanceof Response) return parsed
 
     const imageId = id()
-    const ext = image.name.split('.').pop() ?? 'jpg'
+    const ext = image.name.split('.').pop()?.toLowerCase() ?? 'jpg'
     const key = `images/${conversationId}/${imageId}.${ext}`
-    await env.IMAGES.put(key, image.stream(), {
-      httpMetadata: { contentType: image.type },
-    })
+    await putMedia(env, key, parsed.data, parsed.contentType)
 
     const messageId = id()
     const now = new Date().toISOString()
-    const imageUrl = `/media/${key}`
+    const imageUrl = mediaPath(key)
 
     await env.DB.batch([
       env.DB.prepare(`

@@ -1,5 +1,11 @@
 import type { Env } from '../env'
 import { logAuthEvent } from '../services/auth-log'
+import {
+  MAX_AVATAR_BYTES,
+  mediaPath,
+  putMedia,
+  readImageFile,
+} from '../services/media-storage'
 import { error, getUserId, hashPassword, id, json, signToken, verifyPassword } from '../utils'
 
 export async function handleAuth(request: Request, env: Env, path: string): Promise<Response | null> {
@@ -95,18 +101,15 @@ export async function handleAuth(request: Request, env: Env, path: string): Prom
 
     const form = await request.formData()
     const image = form.get('avatar') as File | null
-    if (!image || !image.type.startsWith('image/')) {
-      return error('Valid image file required')
-    }
-    if (!env.IMAGES) return error('Image storage not configured', 503)
+    if (!image) return error('Valid image file required')
 
-    const ext = image.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const key = `avatars/${userId}.${ext}`
-    await env.IMAGES.put(key, image.stream(), {
-      httpMetadata: { contentType: image.type },
-    })
+    const parsed = await readImageFile(image, MAX_AVATAR_BYTES)
+    if (parsed instanceof Response) return parsed
 
-    const avatarUrl = `/media/${key}`
+    const key = `avatars/${userId}`
+    await putMedia(env, key, parsed.data, parsed.contentType)
+
+    const avatarUrl = `${mediaPath(key)}?v=${Date.now()}`
     await env.DB.prepare('UPDATE users SET avatar_url = ? WHERE id = ?')
       .bind(avatarUrl, userId)
       .run()

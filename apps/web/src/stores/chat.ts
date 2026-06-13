@@ -4,6 +4,7 @@ import type { Conversation, Message, TypingState, UserId } from '@blinkr/shared'
 import { useAuthStore } from './auth'
 import { useWebSocket } from '@/composables/useWebSocket'
 import { api } from '@/lib/api'
+import { CHAT_IMAGE_OPTIONS, compressImage } from '@/lib/compress-image'
 
 export const useChatStore = defineStore('chat', () => {
   const conversations = ref<Conversation[]>([])
@@ -103,8 +104,9 @@ export const useChatStore = defineStore('chat', () => {
 
   async function sendImage(file: File, caption?: string) {
     if (!activeConversationId.value) return
+    const compressed = await compressImage(file, CHAT_IMAGE_OPTIONS)
     const form = new FormData()
-    form.append('image', file)
+    form.append('image', compressed)
     if (caption) form.append('caption', caption)
     const msg = await api.upload<Message>(
       `/conversations/${activeConversationId.value}/messages/image`,

@@ -13,6 +13,9 @@ export interface User {
 
 export interface UserSearchResult extends User {
   exactMatch: boolean
+  isFriend?: boolean
+  outgoingRequest?: boolean
+  incomingRequestId?: string | null
 }
 
 export interface UserSearchResponse {

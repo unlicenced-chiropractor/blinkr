@@ -31,6 +31,8 @@ async function loadFriends() {
 async function sendRequest(userId: string) {
   await api.post('/friends/request', { userId })
   requestedIds.value.add(userId)
+  const hit = results.value.find((u) => u.id === userId)
+  if (hit) hit.outgoingRequest = true
 }
 
 async function respond(requestId: string, accept: boolean) {
@@ -127,7 +129,23 @@ async function messageFriend(friendId: string) {
               </div>
             </div>
             <button
-              v-if="requestedIds.has(user.id)"
+              v-if="user.isFriend"
+              type="button"
+              class="rounded-xl bg-elevated-light px-3 py-1.5 text-sm font-medium text-text-secondary-light dark:bg-elevated-dark dark:text-text-secondary-dark"
+              disabled
+            >
+              Friends
+            </button>
+            <button
+              v-else-if="user.incomingRequestId"
+              type="button"
+              class="rounded-xl bg-blink-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-blink-700"
+              @click="respond(user.incomingRequestId!, true)"
+            >
+              Accept
+            </button>
+            <button
+              v-else-if="user.outgoingRequest || requestedIds.has(user.id)"
               type="button"
               class="rounded-xl bg-elevated-light px-3 py-1.5 text-sm font-medium text-text-secondary-light dark:bg-elevated-dark dark:text-text-secondary-dark"
               disabled

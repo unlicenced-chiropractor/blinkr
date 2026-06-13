@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { User } from '@blinkr/shared'
 import { api } from '@/lib/api'
+import { AVATAR_IMAGE_OPTIONS, compressImage } from '@/lib/compress-image'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
@@ -71,8 +72,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function uploadAvatar(file: File) {
+    const compressed = await compressImage(file, AVATAR_IMAGE_OPTIONS)
     const form = new FormData()
-    form.append('avatar', file)
+    form.append('avatar', compressed)
     user.value = await api.upload<User>('/auth/avatar', form)
   }
 

@@ -4,7 +4,11 @@ import type { UserSearchResponse, UserSearchResult } from '@blinkr/shared'
 import { api } from '@/lib/api'
 
 const MIN_QUERY_LEN = 2
-const DEBOUNCE_MS = 350
+const DEBOUNCE_MS = 300
+
+function normalizeQuery(raw: string): string {
+  return raw.trim().replace(/^@+/, '').toLowerCase()
+}
 
 export function useUserSearch() {
   const query = ref('')
@@ -13,9 +17,10 @@ export function useUserSearch() {
   const hint = ref<string | null>(null)
 
   let abortController: AbortController | null = null
+  let searchSeq = 0
 
   const runSearch = useDebounceFn(async (raw: string) => {
-    const q = raw.trim().replace(/^@+/, '').toLowerCase()
+    const q = normalizeQuery(raw)
 
     if (!q) {
       results.value = []
@@ -38,6 +43,7 @@ export function useUserSearch() {
       return
     }
 
+    const seq = ++searchSeq
     abortController?.abort()
     abortController = new AbortController()
     loading.value = true
@@ -48,21 +54,28 @@ export function useUserSearch() {
         `/users/search?q=${encodeURIComponent(q)}`,
         abortController.signal,
       )
+
+      // Ignore stale responses (aborted or superseded by a newer query)
+      if (seq !== searchSeq) return
+      if (normalizeQuery(query.value) !== q) return
+
       results.value = res.results
       if (!res.results.length) {
-        hint.value = `No users found for @${res.query}`
+        hint.value = `No users matching @${res.query} — search from the start of the username`
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return
+      if (seq !== searchSeq) return
       results.value = []
       hint.value = 'Search failed — try again'
     } finally {
-      loading.value = false
+      if (seq === searchSeq) loading.value = false
     }
   }, DEBOUNCE_MS)
 
   watch(query, (value) => {
     if (!value.trim()) {
+      searchSeq++
       abortController?.abort()
       results.value = []
       hint.value = null
@@ -74,6 +87,7 @@ export function useUserSearch() {
   })
 
   function clear() {
+    searchSeq++
     abortController?.abort()
     query.value = ''
     results.value = []

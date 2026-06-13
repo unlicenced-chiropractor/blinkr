@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 env:
-  BLINKR_API_URL: https://blinkr-api.cs2-cases.workers.dev
-  BLINKR_WS_URL: wss://blinkr-api.cs2-cases.workers.dev/ws
+  BLINKR_API_URL: https://blinkr.sortedsh.workers.dev
+  BLINKR_WS_URL: wss://blinkr.sortedsh.workers.dev/ws
 
 jobs:
   build-web:
@@ -143,7 +143,7 @@ jobs:
           ### Downloads
           - **Windows**: blinkr-windows-setup.exe
           - **macOS**: blinkr-macos.dmg
-          - **ChromeOS / Web**: blinkr-chromeos-pwa.zip (PWA) or https://blinkr-api.cs2-cases.workers.dev
+          - **ChromeOS / Web**: blinkr-chromeos-pwa.zip (PWA) or https://blinkr.sortedsh.workers.dev
 
           ### Live API
           ${{ env.BLINKR_API_URL }}"

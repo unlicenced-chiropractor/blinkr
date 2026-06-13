@@ -6,6 +6,7 @@ import type { Message } from '@blinkr/shared'
 const props = defineProps<{
   replyTo?: Message | null
   editingMessage?: Message | null
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -116,8 +117,9 @@ function onFileChange(e: Event) {
       <div v-if="!editingMessage" class="flex gap-1">
         <button
           type="button"
-          class="flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark dark:hover:text-blink-400"
+          class="flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark dark:hover:text-blink-400 disabled:opacity-40"
           title="Attach photo"
+          :disabled="disabled"
           @click="fileInput?.click()"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -126,8 +128,9 @@ function onFileChange(e: Event) {
         </button>
         <button
           type="button"
-          class="flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark dark:hover:text-blink-400"
+          class="flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary-light transition hover:bg-elevated-light hover:text-blink-600 dark:text-text-secondary-dark dark:hover:bg-elevated-dark dark:hover:text-blink-400 disabled:opacity-40"
           title="Take photo"
+          :disabled="disabled"
           @click="cameraInput?.click()"
         >
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

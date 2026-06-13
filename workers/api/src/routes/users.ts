@@ -24,8 +24,6 @@ export async function handleUsers(request: Request, env: Env, path: string): Pro
     return json({ results: [], query: '' })
   }
 
-  // Single indexed query: exact username first, then prefix matches.
-  // Excludes self, existing friends, and pending requests in one round-trip.
   const { results } = await env.DB.prepare(`
     SELECT
       u.id,
@@ -36,22 +34,23 @@ export async function handleUsers(request: Request, env: Env, path: string): Pro
       CASE
         WHEN u.username = ?1 THEN 0
         ELSE 1
-      END AS match_rank
+      END AS match_rank,
+      EXISTS (
+        SELECT 1 FROM friendships f
+        WHERE f.user_id = ?2 AND f.friend_id = u.id
+      ) AS is_friend,
+      EXISTS (
+        SELECT 1 FROM friend_requests fr
+        WHERE fr.from_user_id = ?2 AND fr.to_user_id = u.id AND fr.status = 'pending'
+      ) AS outgoing_request,
+      (
+        SELECT fr.id FROM friend_requests fr
+        WHERE fr.from_user_id = u.id AND fr.to_user_id = ?2 AND fr.status = 'pending'
+        LIMIT 1
+      ) AS incoming_request_id
     FROM users u
     WHERE u.id != ?2
       AND (u.username = ?1 OR u.username LIKE ?1 || '%')
-      AND NOT EXISTS (
-        SELECT 1 FROM friendships f
-        WHERE f.user_id = ?2 AND f.friend_id = u.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM friend_requests fr
-        WHERE fr.status = 'pending'
-          AND (
-            (fr.from_user_id = ?2 AND fr.to_user_id = u.id)
-            OR (fr.from_user_id = u.id AND fr.to_user_id = ?2)
-          )
-      )
     ORDER BY match_rank, u.username
     LIMIT ?3
   `)
@@ -63,6 +62,9 @@ export async function handleUsers(request: Request, env: Env, path: string): Pro
       avatar_url: string | null
       created_at: string
       match_rank: number
+      is_friend: number
+      outgoing_request: number
+      incoming_request_id: string | null
     }>()
 
   return json({
@@ -74,6 +76,9 @@ export async function handleUsers(request: Request, env: Env, path: string): Pro
       avatarUrl: u.avatar_url,
       createdAt: u.created_at,
       exactMatch: u.match_rank === 0,
+      isFriend: u.is_friend === 1,
+      outgoingRequest: u.outgoing_request === 1,
+      incomingRequestId: u.incoming_request_id,
     })),
   })
 }

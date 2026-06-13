@@ -20,6 +20,8 @@ const replyTo = ref<Message | null>(null)
 const editingMessage = ref<Message | null>(null)
 const showMobileSidebar = ref(true)
 const userCache = ref<Record<string, User>>({})
+const imageUploadError = ref('')
+const imageUploading = ref(false)
 
 const peerId = computed(() => chat.activeConversation?.peer?.id)
 
@@ -125,8 +127,16 @@ function onSaveEdit(content: string) {
   }
 }
 
-function onSendImage(file: File) {
-  chat.sendImage(file)
+async function onSendImage(file: File) {
+  imageUploadError.value = ''
+  imageUploading.value = true
+  try {
+    await chat.sendImage(file)
+  } catch (err) {
+    imageUploadError.value = err instanceof Error ? err.message : 'Image upload failed'
+  } finally {
+    imageUploading.value = false
+  }
 }
 
 function onTyping(isTyping: boolean) {
@@ -224,9 +234,13 @@ function isSeen(msg: Message) {
           <TypingIndicator v-if="typingNames.length" :names="typingNames" />
         </div>
 
+        <p v-if="imageUploadError" class="border-t border-border-light px-4 py-2 text-sm text-red-500 dark:border-border-dark">
+          {{ imageUploadError }}
+        </p>
         <MessageInput
           :reply-to="replyTo"
           :editing-message="editingMessage"
+          :disabled="imageUploading"
           @send="onSend"
           @save-edit="onSaveEdit"
           @send-image="onSendImage"

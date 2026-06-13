@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  BLINKR_API_URL: https://blinkr-api.cs2-cases.workers.dev
-  BLINKR_WS_URL: wss://blinkr-api.cs2-cases.workers.dev/ws
+  BLINKR_API_URL: https://blinkr.sortedsh.workers.dev
+  BLINKR_WS_URL: wss://blinkr.sortedsh.workers.dev/ws
 
 jobs:
   deploy:

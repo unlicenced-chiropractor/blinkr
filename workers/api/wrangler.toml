@@ -1,4 +1,4 @@
-name = "blinkr-api"
+name = "blinkr"
 main = "src/index.ts"
 compatibility_date = "2025-04-01"
 
@@ -10,16 +10,14 @@ run_worker_first = true
 
 [vars]
 ENVIRONMENT = "production"
+# Set after creating the bucket in Backblaze (Dashboard → Buckets → bucket details)
+B2_BUCKET_NAME = "blinkr-media"
+B2_BUCKET_ID = "87d98288ebb6bae191e10610"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "blinkr-db"
 database_id = "cfe5b9dc-9381-4779-8b95-75870116fa9e"
-
-# Enable R2 in the Cloudflare dashboard, create bucket blinkr-images, then uncomment:
-# [[r2_buckets]]
-# binding = "IMAGES"
-# bucket_name = "blinkr-images"
 
 [durable_objects]
 bindings = [
