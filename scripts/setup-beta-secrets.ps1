@@ -1,10 +1,10 @@
 # One-time: copy production Worker secrets to the beta Worker (same values).
-# Run from repo root after the beta worker exists (first deploy-beta or wrangler deploy --env beta).
+# Prefer setup-github-secrets.ps1 so CI keeps both workers in sync.
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "Set the same secrets on blinkr-beta as production." -ForegroundColor Cyan
-Write-Host "Use the identical values you set for the main blinkr worker."
+Write-Host "These MUST match production JWT_SECRET or login tokens won't work across URLs."
 Write-Host ""
 
 Push-Location "$PSScriptRoot\..\workers\api"

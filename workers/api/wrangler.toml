@@ -45,6 +45,7 @@ port = 8787
 [env.beta]
 name = "blinkr-beta"
 workers_dev = true
+routes = []
 
 [env.beta.vars]
 ENVIRONMENT = "beta"

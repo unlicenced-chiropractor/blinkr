@@ -169,6 +169,9 @@ git push origin beta   # auto-deploys beta
 # One-time beta Worker secrets (same values as production):
 .\scripts\setup-beta-secrets.ps1
 
+# Or add to GitHub so every deploy syncs both Workers:
+.\scripts\setup-github-secrets.ps1
+
 # Manual beta deploy:
 .\scripts\deploy-beta.ps1
 ```
