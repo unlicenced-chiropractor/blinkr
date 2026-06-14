@@ -10,6 +10,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
     <title>Blinkr</title>
+    <script>
+      (function () {
+        var mode = localStorage.getItem('blinkr-theme') || 'dark';
+        var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+        var palette = localStorage.getItem('blinkr-palette') || 'violet';
+        document.documentElement.dataset.theme = palette;
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./themes.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -6,28 +7,28 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", var(--font-sans);
 
-  --color-blink-50: #f5f3ff;
-  --color-blink-100: #ede9fe;
-  --color-blink-200: #ddd6fe;
-  --color-blink-300: #c4b5fd;
-  --color-blink-400: #a78bfa;
-  --color-blink-500: #8b5cf6;
-  --color-blink-600: #7c3aed;
-  --color-blink-700: #6d28d9;
-  --color-blink-800: #5b21b6;
-  --color-blink-900: #4c1d95;
+  --color-blink-50: var(--theme-blink-50);
+  --color-blink-100: var(--theme-blink-100);
+  --color-blink-200: var(--theme-blink-200);
+  --color-blink-300: var(--theme-blink-300);
+  --color-blink-400: var(--theme-blink-400);
+  --color-blink-500: var(--theme-blink-500);
+  --color-blink-600: var(--theme-blink-600);
+  --color-blink-700: var(--theme-blink-700);
+  --color-blink-800: var(--theme-blink-800);
+  --color-blink-900: var(--theme-blink-900);
 
-  --color-accent: #06b6d4;
-  --color-accent-light: #22d3ee;
+  --color-accent: var(--theme-accent);
+  --color-accent-light: var(--theme-accent-light);
 
   --color-surface-light: #faf9fc;
-  --color-surface-dark: #000000;
+  --color-surface-dark: var(--theme-surface-dark);
   --color-panel-light: #ffffff;
-  --color-panel-dark: #0a0a0a;
+  --color-panel-dark: var(--theme-panel-dark);
   --color-elevated-light: #f3f1f7;
-  --color-elevated-dark: #141414;
+  --color-elevated-dark: var(--theme-elevated-dark);
   --color-border-light: #e8e4ef;
-  --color-border-dark: #262626;
+  --color-border-dark: var(--theme-border-dark);
   --color-text-primary-light: #1a1025;
   --color-text-primary-dark: #fafafa;
   --color-text-secondary-light: #6b5f7a;

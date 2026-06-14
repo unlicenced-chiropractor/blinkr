@@ -4,6 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import type { ThemeMode } from '@/stores/theme'
+import { THEME_PALETTES } from '@/lib/themes'
 import Avatar from '@/components/ui/Avatar.vue'
 
 const auth = useAuthStore()
@@ -261,7 +262,36 @@ function signOut() {
           Appearance
         </h2>
         <p class="mb-4 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-          Choose how Blinkr looks on this device
+          Pick a color theme and light or dark mode
+        </p>
+
+        <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
+          Color theme
+        </p>
+        <div class="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <button
+            v-for="opt in THEME_PALETTES"
+            :key="opt.id"
+            type="button"
+            class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ring-1"
+            :class="theme.palette === opt.id
+              ? 'ring-blink-500 bg-blink-500/10 dark:bg-blink-500/15'
+              : 'ring-transparent bg-elevated-light hover:ring-border-light dark:bg-elevated-dark dark:hover:ring-border-dark'"
+            @click="theme.setPalette(opt.id)"
+          >
+            <span
+              class="h-8 w-8 shrink-0 rounded-lg shadow-inner ring-1 ring-black/10 dark:ring-white/10"
+              :style="{ background: `linear-gradient(135deg, ${opt.swatch[0]}, ${opt.swatch[1]})` }"
+            />
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold">{{ opt.label }}</span>
+              <span class="block truncate text-xs text-text-secondary-light dark:text-text-secondary-dark">{{ opt.hint }}</span>
+            </span>
+          </button>
+        </div>
+
+        <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
+          Mode
         </p>
         <div class="grid gap-2 sm:grid-cols-3">
           <button
