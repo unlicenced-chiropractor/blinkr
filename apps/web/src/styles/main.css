@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./aesthetic-themes.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -6,32 +7,61 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", var(--font-sans);
 
-  --color-blink-50: #f5f3ff;
-  --color-blink-100: #ede9fe;
-  --color-blink-200: #ddd6fe;
-  --color-blink-300: #c4b5fd;
-  --color-blink-400: #a78bfa;
-  --color-blink-500: #8b5cf6;
-  --color-blink-600: #7c3aed;
-  --color-blink-700: #6d28d9;
-  --color-blink-800: #5b21b6;
-  --color-blink-900: #4c1d95;
+  --color-blink-50: var(--theme-blink-50);
+  --color-blink-100: var(--theme-blink-100);
+  --color-blink-200: var(--theme-blink-200);
+  --color-blink-300: var(--theme-blink-300);
+  --color-blink-400: var(--theme-blink-400);
+  --color-blink-500: var(--theme-blink-500);
+  --color-blink-600: var(--theme-blink-600);
+  --color-blink-700: var(--theme-blink-700);
+  --color-blink-800: var(--theme-blink-800);
+  --color-blink-900: var(--theme-blink-900);
 
-  --color-accent: #06b6d4;
-  --color-accent-light: #22d3ee;
+  --color-accent: var(--theme-accent);
+  --color-accent-light: var(--theme-accent-light);
 
-  --color-surface-light: #faf9fc;
-  --color-surface-dark: #000000;
-  --color-panel-light: #ffffff;
-  --color-panel-dark: #0a0a0a;
-  --color-elevated-light: #f3f1f7;
-  --color-elevated-dark: #141414;
-  --color-border-light: #e8e4ef;
-  --color-border-dark: #262626;
-  --color-text-primary-light: #1a1025;
-  --color-text-primary-dark: #fafafa;
-  --color-text-secondary-light: #6b5f7a;
-  --color-text-secondary-dark: #a3a3a3;
+  --color-surface-light: var(--theme-surface-light);
+  --color-surface-dark: var(--theme-surface-dark);
+  --color-panel-light: var(--theme-panel-light);
+  --color-panel-dark: var(--theme-panel-dark);
+  --color-elevated-light: var(--theme-elevated-light);
+  --color-elevated-dark: var(--theme-elevated-dark);
+  --color-border-light: var(--theme-border-light);
+  --color-border-dark: var(--theme-border-dark);
+  --color-text-primary-light: var(--theme-text-primary-light);
+  --color-text-primary-dark: var(--theme-text-primary-dark);
+  --color-text-secondary-light: var(--theme-text-secondary-light);
+  --color-text-secondary-dark: var(--theme-text-secondary-dark);
+}
+
+/* Default tokens before JS runs */
+:root {
+  --theme-blink-50: #f5f3ff;
+  --theme-blink-100: #ede9fe;
+  --theme-blink-200: #ddd6fe;
+  --theme-blink-300: #c4b5fd;
+  --theme-blink-400: #a78bfa;
+  --theme-blink-500: #8b5cf6;
+  --theme-blink-600: #7c3aed;
+  --theme-blink-700: #6d28d9;
+  --theme-blink-800: #5b21b6;
+  --theme-blink-900: #4c1d95;
+  --theme-accent: #06b6d4;
+  --theme-accent-light: #22d3ee;
+  --theme-surface-light: #faf9fc;
+  --theme-surface-dark: #000000;
+  --theme-panel-light: #ffffff;
+  --theme-panel-dark: #0a0a0a;
+  --theme-elevated-light: #f3f1f7;
+  --theme-elevated-dark: #141414;
+  --theme-border-light: #e8e4ef;
+  --theme-border-dark: #262626;
+  --theme-text-primary-light: #1a1025;
+  --theme-text-primary-dark: #fafafa;
+  --theme-text-secondary-light: #6b5f7a;
+  --theme-text-secondary-dark: #a3a3a3;
+  --theme-radius: 0.75rem;
 }
 
 @layer base {
@@ -45,10 +75,6 @@
     @apply transition-colors duration-300;
   }
 
-  html.has-wallpaper body {
-    background-color: transparent;
-  }
-
   ::selection {
     @apply bg-blink-500/30;
   }
@@ -57,10 +83,6 @@
 @layer utilities {
   .app-shell {
     @apply bg-surface-light dark:bg-surface-dark;
-  }
-
-  html.has-wallpaper .app-shell {
-    background-color: transparent !important;
   }
 
   .glass {

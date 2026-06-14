@@ -3,14 +3,12 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
-import { useBackgroundStore } from '@/stores/background'
 import type { ThemeMode } from '@/stores/theme'
-import { WALLPAPER_COUNT } from '@/lib/wallpapers'
+import { AESTHETIC_THEME_COUNT } from '@/lib/aesthetic-themes'
 import Avatar from '@/components/ui/Avatar.vue'
 
 const auth = useAuthStore()
 const theme = useThemeStore()
-const background = useBackgroundStore()
 const router = useRouter()
 
 const BIO_MAX = 160
@@ -264,34 +262,24 @@ function signOut() {
           Appearance
         </h2>
         <p class="mb-4 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-          Set a background image and choose light or dark mode
+          Pick a UI skin — Frutiger Aero, Matte, Neumorphic, and more
         </p>
 
         <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-          Background
+          Theme
         </p>
         <RouterLink
-          to="/settings/wallpapers"
+          to="/settings/themes"
           class="mb-5 flex items-center gap-3 rounded-xl bg-elevated-light px-3 py-3 ring-1 ring-transparent transition hover:ring-border-light dark:bg-elevated-dark dark:hover:ring-border-dark"
         >
           <span
-            v-if="background.imageUrl"
-            class="h-12 w-12 shrink-0 overflow-hidden rounded-xl ring-1 ring-black/10 dark:ring-white/10"
-          >
-            <img :src="background.imageUrl" alt="" class="h-full w-full object-cover">
-          </span>
-          <span
-            v-else
-            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-panel-light ring-1 ring-border-light dark:bg-panel-dark dark:ring-border-dark"
-          >
-            <svg class="h-6 w-6 text-text-secondary-light dark:text-text-secondary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </span>
+            class="h-12 w-12 shrink-0 rounded-xl shadow-inner ring-1 ring-black/10 dark:ring-white/10"
+            :style="{ background: `linear-gradient(135deg, ${theme.currentAesthetic.swatch[0]}, ${theme.currentAesthetic.swatch[1]})` }"
+          />
           <span class="min-w-0 flex-1">
-            <span class="block text-sm font-semibold">{{ background.label }}</span>
+            <span class="block text-sm font-semibold">{{ theme.currentAesthetic.name }}</span>
             <span class="block text-xs text-text-secondary-light dark:text-text-secondary-dark">
-              Browse {{ WALLPAPER_COUNT }} wallpapers or upload your own
+              Browse {{ AESTHETIC_THEME_COUNT }} themes in the store
             </span>
           </span>
           <svg class="h-5 w-5 shrink-0 text-text-secondary-light dark:text-text-secondary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -299,29 +287,34 @@ function signOut() {
           </svg>
         </RouterLink>
 
-        <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
-          Mode
-        </p>
-        <div class="grid gap-2 sm:grid-cols-3">
-          <button
-            v-for="opt in themeOptions"
-            :key="opt.value"
-            type="button"
-            class="rounded-xl px-3 py-3 text-left transition"
-            :class="theme.mode === opt.value
-              ? 'gradient-brand text-white shadow-md shadow-blink-600/20'
-              : 'bg-elevated-light dark:bg-elevated-dark'"
-            @click="theme.setMode(opt.value)"
-          >
-            <span class="block text-sm font-semibold">{{ opt.label }}</span>
-            <span
-              class="block text-xs"
-              :class="theme.mode === opt.value ? 'text-white/80' : 'text-text-secondary-light dark:text-text-secondary-dark'"
+        <template v-if="theme.modePickerEnabled">
+          <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
+            Mode
+          </p>
+          <div class="grid gap-2 sm:grid-cols-3">
+            <button
+              v-for="opt in themeOptions"
+              :key="opt.value"
+              type="button"
+              class="rounded-xl px-3 py-3 text-left transition"
+              :class="theme.mode === opt.value
+                ? 'gradient-brand text-white shadow-md shadow-blink-600/20'
+                : 'bg-elevated-light dark:bg-elevated-dark'"
+              @click="theme.setMode(opt.value)"
             >
-              {{ opt.hint }}
-            </span>
-          </button>
-        </div>
+              <span class="block text-sm font-semibold">{{ opt.label }}</span>
+              <span
+                class="block text-xs"
+                :class="theme.mode === opt.value ? 'text-white/80' : 'text-text-secondary-light dark:text-text-secondary-dark'"
+              >
+                {{ opt.hint }}
+              </span>
+            </button>
+          </div>
+        </template>
+        <p v-else class="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+          This theme sets its own light/dark appearance.
+        </p>
       </section>
 
       <!-- Notifications -->

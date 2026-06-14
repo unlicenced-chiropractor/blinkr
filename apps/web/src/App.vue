@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { useBackgroundStore } from '@/stores/background'
 import { useAuthStore } from '@/stores/auth'
-import AppBackground from '@/components/ui/AppBackground.vue'
 
 const theme = useThemeStore()
-const background = useBackgroundStore()
 const auth = useAuthStore()
 theme.init()
-void background.init()
 
 onMounted(async () => {
   if (!auth.sessionReady) {
@@ -19,7 +15,6 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AppBackground />
   <div v-if="!auth.sessionReady" class="app-shell relative z-10 flex min-h-dvh items-center justify-center">
     <div class="h-8 w-8 animate-spin rounded-full border-2 border-blink-500 border-t-transparent" />
   </div>

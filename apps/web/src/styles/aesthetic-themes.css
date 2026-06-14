@@ -1,0 +1,145 @@
+/* Aesthetic skin effects — applied via html[data-aesthetic] */
+
+[data-aesthetic="frutiger-aero"] body {
+  background: linear-gradient(180deg, #87ceeb 0%, #b8e0f0 35%, #98d898 70%, #6ab04c 100%);
+  background-attachment: fixed;
+}
+
+[data-aesthetic="frutiger-aero"] .app-shell {
+  background: transparent !important;
+}
+
+[data-aesthetic="frutiger-aero"] .glass,
+[data-aesthetic="frutiger-aero"] .bg-panel-light,
+[data-aesthetic="frutiger-aero"] .dark .bg-panel-dark {
+  backdrop-filter: blur(12px);
+}
+
+[data-aesthetic="sunset"] body {
+  background: linear-gradient(160deg, #1a0a12 0%, #4a1828 40%, #f97316 100%);
+  background-attachment: fixed;
+}
+
+[data-aesthetic="sunset"] .app-shell {
+  background: transparent !important;
+}
+
+[data-aesthetic="space"] body {
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(168, 85, 247, 0.12) 0%, transparent 45%),
+    #050308;
+  background-attachment: fixed;
+}
+
+[data-aesthetic="space"] .app-shell {
+  background: transparent !important;
+}
+
+[data-aesthetic="beach-day"] body {
+  background: linear-gradient(180deg, #87ceeb 0%, #fef6e8 55%, #f4c97a 100%);
+  background-attachment: fixed;
+}
+
+[data-aesthetic="beach-day"] .app-shell {
+  background: transparent !important;
+}
+
+[data-aesthetic="retro-crt"]::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12) 0px,
+    rgba(0, 0, 0, 0.12) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+[data-aesthetic="retro-crt"] body {
+  text-shadow: 0 0 8px rgba(255, 176, 0, 0.35);
+}
+
+[data-aesthetic="neumorphic"] .rounded-xl,
+[data-aesthetic="neumorphic"] .rounded-2xl {
+  box-shadow:
+    6px 6px 12px rgba(163, 177, 198, 0.55),
+    -6px -6px 12px rgba(255, 255, 255, 0.85);
+}
+
+[data-aesthetic="neumorphic"].dark .rounded-xl,
+[data-aesthetic="neumorphic"].dark .rounded-2xl {
+  box-shadow:
+    6px 6px 12px rgba(0, 0, 0, 0.45),
+    -4px -4px 10px rgba(255, 255, 255, 0.04);
+}
+
+[data-aesthetic="matte"] .gradient-brand {
+  background: var(--color-blink-600) !important;
+  box-shadow: none !important;
+}
+
+[data-aesthetic="matte"] .shadow-md,
+[data-aesthetic="matte"] .shadow-lg,
+[data-aesthetic="matte"] .shadow-xl {
+  box-shadow: none !important;
+}
+
+[data-aesthetic="xp-luna"] .gradient-brand {
+  background: linear-gradient(180deg, #0058e6 0%, #0038a8 100%) !important;
+  border: 1px solid #003080;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-aesthetic="xp-luna"] .rounded-xl,
+[data-aesthetic="xp-luna"] .rounded-2xl {
+  border: 1px solid #aca899;
+}
+
+[data-aesthetic="hacker"] .gradient-brand {
+  background: #22c55e !important;
+  color: #000 !important;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.4) !important;
+}
+
+[data-aesthetic="hacker"] {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-aesthetic="pink-dream"] body {
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 50%, #fbcfe8 100%);
+  background-attachment: fixed;
+}
+
+[data-aesthetic="pink-dream"] .app-shell {
+  background: transparent !important;
+}
+
+[data-aesthetic="arctic-aurora"] body {
+  background:
+    linear-gradient(180deg, rgba(34, 211, 238, 0.08) 0%, transparent 40%),
+    linear-gradient(120deg, rgba(129, 140, 248, 0.1) 0%, transparent 50%),
+    #060c10;
+  background-attachment: fixed;
+}
+
+[data-aesthetic="arctic-aurora"] .app-shell {
+  background: transparent !important;
+}
+
+/* Theme-specific border radius */
+[data-aesthetic] .rounded-xl {
+  border-radius: var(--theme-radius, 0.75rem);
+}
+
+[data-aesthetic] .rounded-2xl {
+  border-radius: calc(var(--theme-radius, 0.75rem) + 0.25rem);
+}
+
+[data-aesthetic] .rounded-full {
+  border-radius: 9999px;
+}
