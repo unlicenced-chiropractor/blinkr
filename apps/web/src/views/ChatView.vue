@@ -262,7 +262,7 @@ function onGroupCreated(id: string) {
 </script>
 
 <template>
-  <div class="flex h-dvh overflow-hidden bg-surface-light dark:bg-surface-dark">
+  <div class="app-shell flex h-dvh overflow-hidden">
     <div
       class="absolute inset-0 z-20 md:relative md:z-auto md:flex md:shrink-0"
       :class="showMobileSidebar ? 'flex' : 'hidden md:flex'"

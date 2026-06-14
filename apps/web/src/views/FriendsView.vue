@@ -64,7 +64,7 @@ async function messageFriend(friendId: string) {
 </script>
 
 <template>
-  <div class="min-h-dvh bg-surface-light dark:bg-surface-dark">
+  <div class="app-shell min-h-dvh">
     <header class="border-b border-border-light bg-panel-light px-4 py-4 dark:border-border-dark dark:bg-panel-dark">
       <div class="mx-auto flex max-w-2xl items-center gap-3">
         <RouterLink
