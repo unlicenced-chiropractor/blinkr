@@ -1,6 +1,40 @@
 import type { Env } from '../env'
 import { broadcastToConversation } from './broadcast'
 
+export async function getUnreadCountsForConversations(
+  env: Env,
+  conversationIds: string[],
+  userId: string,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (!conversationIds.length) return map
+
+  for (const id of conversationIds) map.set(id, 0)
+
+  const placeholders = conversationIds.map(() => '?').join(',')
+  const { results } = await env.DB.prepare(`
+    SELECT m.conversation_id, COUNT(*) AS count
+    FROM messages m
+    WHERE m.conversation_id IN (${placeholders})
+      AND m.sender_id != ?
+      AND m.deleted_at IS NULL
+      AND m.created_at > COALESCE(
+        (SELECT m2.created_at FROM read_receipts rr
+         JOIN messages m2 ON m2.id = rr.message_id
+         WHERE rr.conversation_id = m.conversation_id AND rr.user_id = ?),
+        '1970-01-01'
+      )
+    GROUP BY m.conversation_id
+  `)
+    .bind(...conversationIds, userId, userId)
+    .all<{ conversation_id: string; count: number }>()
+
+  for (const row of results) {
+    map.set(row.conversation_id, row.count)
+  }
+  return map
+}
+
 export async function getUnreadCount(
   env: Env,
   conversationId: string,

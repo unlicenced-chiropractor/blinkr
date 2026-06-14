@@ -66,8 +66,17 @@ function whenAuthenticated(timeoutMs = 8000): Promise<boolean> {
 }
 
 function connect(authToken: string, h: WsHandlers) {
-  token = authToken
   handlers = h
+
+  if (
+    socket?.readyState === WebSocket.OPEN
+    && token === authToken
+    && isAuthenticated
+  ) {
+    return
+  }
+
+  token = authToken
   isAuthenticated = false
   wsAuthenticated.value = false
   resolveAuthWaiters(false)

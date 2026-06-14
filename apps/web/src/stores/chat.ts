@@ -41,12 +41,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadMessages(conversationId: string) {
-    const [msgs, receipts] = await Promise.all([
-      api.get<Message[]>(`/conversations/${conversationId}/messages`),
-      api.get<Record<string, string>>(`/conversations/${conversationId}/read-receipts`),
-    ])
-    messages.value[conversationId] = msgs
-    readReceipts.value[conversationId] = receipts
+    const payload = await api.get<{ messages: Message[]; readReceipts: Record<string, string> }>(
+      `/conversations/${conversationId}/messages`,
+    )
+    messages.value[conversationId] = payload.messages
+    readReceipts.value[conversationId] = payload.readReceipts
     await markActiveConversationRead()
   }
 
@@ -70,7 +69,6 @@ export const useChatStore = defineStore('chat', () => {
     }
     const conv = conversations.value.find((c) => c.id === conversationId)
     if (conv) conv.unreadCount = 0
-    ws.markRead(conversationId, messageId)
   }
 
   async function selectConversation(id: string) {
@@ -89,6 +87,16 @@ export const useChatStore = defineStore('chat', () => {
 
   async function initialize(options?: { conversationId?: string }) {
     if (!auth.token) return
+
+    if (ready.value && ws.wsAuthenticated.value) {
+      void loadConversations()
+      const preferred = options?.conversationId
+      if (preferred && preferred !== activeConversationId.value) {
+        await selectConversation(preferred)
+      }
+      return
+    }
+
     ready.value = false
 
     connect()
@@ -255,7 +263,7 @@ export const useChatStore = defineStore('chat', () => {
     }
     wsPingReady = true
     ping()
-    pingTimer = setInterval(ping, 2000)
+    pingTimer = setInterval(ping, 5000)
   }
 
   function startApiHealthMonitor() {
@@ -270,7 +278,7 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
     ping()
-    apiPingTimer = setInterval(ping, 5000)
+    apiPingTimer = setInterval(ping, 30000)
   }
 
   function connect() {

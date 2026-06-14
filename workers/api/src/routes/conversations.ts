@@ -1,5 +1,6 @@
 import type { Env } from '../env'
 import { broadcastToConversation } from '../services/broadcast'
+import { formatConversation, formatConversationsBatch } from '../services/conversation-format'
 import {
   areFriends,
   createGroupConversation,
@@ -18,25 +19,15 @@ import {
 } from '../services/message-retention'
 import {
   getConversationReadReceipts,
-  getUnreadCount,
   markConversationRead,
 } from '../services/read-receipts'
 import { error, getUserId, id, json } from '../utils'
 
-async function formatMessage(env: Env, row: Record<string, unknown>) {
-  const { results: reactions } = await env.DB.prepare(
-    'SELECT emoji, user_id FROM message_reactions WHERE message_id = ?',
-  )
-    .bind(row.id)
-    .all<{ emoji: string; user_id: string }>()
-
-  const reactionMap = new Map<string, string[]>()
-  for (const r of reactions) {
-    const list = reactionMap.get(r.emoji) ?? []
-    list.push(r.user_id)
-    reactionMap.set(r.emoji, list)
-  }
-
+function formatMessageRow(
+  row: Record<string, unknown>,
+  reactionsByMessage: Map<string, Map<string, string[]>>,
+) {
+  const reactionMap = reactionsByMessage.get(row.id as string) ?? new Map()
   return {
     id: row.id,
     conversationId: row.conversation_id,
@@ -52,89 +43,63 @@ async function formatMessage(env: Env, row: Record<string, unknown>) {
   }
 }
 
-async function getPeerForDirect(env: Env, conversationId: string, userId: string) {
-  const peer = await env.DB.prepare(`
-    SELECT u.id, u.username, u.display_name, u.avatar_url
-    FROM conversation_members cm
-    JOIN users u ON u.id = cm.user_id
-    WHERE cm.conversation_id = ? AND cm.user_id != ?
-    LIMIT 1
-  `)
-    .bind(conversationId, userId)
-    .first<{
-      id: string
-      username: string
-      display_name: string
-      avatar_url: string | null
-    }>()
-
-  if (!peer) return null
-  return {
-    id: peer.id,
-    username: peer.username,
-    displayName: peer.display_name,
-    avatarUrl: peer.avatar_url,
-  }
-}
-
-async function getMembersForConversation(env: Env, conversationId: string) {
-  const { results } = await env.DB.prepare(`
-    SELECT u.id, u.username, u.display_name, u.avatar_url
-    FROM conversation_members cm
-    JOIN users u ON u.id = cm.user_id
-    WHERE cm.conversation_id = ?
-    ORDER BY u.display_name
-  `)
-    .bind(conversationId)
-    .all<{
-      id: string
-      username: string
-      display_name: string
-      avatar_url: string | null
-    }>()
-
-  return results.map((u) => ({
-    id: u.id,
-    username: u.username,
-    displayName: u.display_name,
-    avatarUrl: u.avatar_url,
-  }))
-}
-
-async function formatConversation(
+async function loadReactionsForMessages(
   env: Env,
-  c: Record<string, unknown>,
-  userId: string,
-) {
-  const { results: memberRows } = await env.DB.prepare(
-    'SELECT user_id FROM conversation_members WHERE conversation_id = ?',
-  )
-    .bind(c.id)
-    .all<{ user_id: string }>()
+  messageIds: string[],
+): Promise<Map<string, Map<string, string[]>>> {
+  const reactionsByMessage = new Map<string, Map<string, string[]>>()
+  if (!messageIds.length) return reactionsByMessage
 
-  const peer = c.type === 'direct' ? await getPeerForDirect(env, c.id as string, userId) : null
-  const members = c.type === 'group' ? await getMembersForConversation(env, c.id as string) : undefined
-  const unreadCount = await getUnreadCount(env, c.id as string, userId)
+  const placeholders = messageIds.map(() => '?').join(', ')
+  const { results } = await env.DB.prepare(`
+    SELECT message_id, emoji, user_id FROM message_reactions
+    WHERE message_id IN (${placeholders})
+  `)
+    .bind(...messageIds)
+    .all<{ message_id: string; emoji: string; user_id: string }>()
 
-  return {
-    id: c.id,
-    type: c.type,
-    name: c.name,
-    iconUrl: c.icon_url,
-    memberIds: memberRows.map((m) => m.user_id),
-    members,
-    peer,
-    unreadCount,
-    lastMessageAt: c.last_message_at,
-    createdAt: c.created_at,
+  for (const reaction of results) {
+    let emojiMap = reactionsByMessage.get(reaction.message_id)
+    if (!emojiMap) {
+      emojiMap = new Map()
+      reactionsByMessage.set(reaction.message_id, emojiMap)
+    }
+    const list = emojiMap.get(reaction.emoji) ?? []
+    list.push(reaction.user_id)
+    emojiMap.set(reaction.emoji, list)
   }
+  return reactionsByMessage
 }
 
-export async function handleConversations(request: Request, env: Env, path: string): Promise<Response | null> {
+async function formatMessage(env: Env, row: Record<string, unknown>) {
+  const reactionsByMessage = await loadReactionsForMessages(env, [row.id as string])
+  return formatMessageRow(row, reactionsByMessage)
+}
+
+async function formatMessages(env: Env, rows: Record<string, unknown>[]) {
+  const reactionsByMessage = await loadReactionsForMessages(
+    env,
+    rows.map((row) => row.id as string),
+  )
+  return rows.map((row) => formatMessageRow(row, reactionsByMessage))
+}
+
+export async function handleConversations(
+  request: Request,
+  env: Env,
+  path: string,
+  ctx?: ExecutionContext,
+): Promise<Response | null> {
   if (!path.startsWith('/conversations')) return null
 
   const userId = await getUserId(request, env)
   if (!userId) return error('Unauthorized', 401)
+
+  const schedulePrune = (conversationId: string) => {
+    const task = pruneConversationMessages(env, conversationId)
+    if (ctx) ctx.waitUntil(task)
+    else void task
+  }
 
   if (path === '/conversations/direct' && request.method === 'POST') {
     const body = await request.json<{ friendId: string }>()
@@ -183,13 +148,16 @@ export async function handleConversations(request: Request, env: Env, path: stri
       JOIN conversation_members cm ON cm.conversation_id = c.id
       WHERE cm.user_id = ?
       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
-    `).bind(userId).all()
+    `).bind(userId).all<{
+      id: string
+      type: string
+      name: string | null
+      icon_url: string | null
+      last_message_at: string | null
+      created_at: string
+    }>()
 
-    const conversations = await Promise.all(
-      results.map((c) => formatConversation(env, c, userId)),
-    )
-
-    return json(conversations)
+    return json(await formatConversationsBatch(env, results, userId))
   }
 
   const readMatch = path.match(/^\/conversations\/([^/]+)\/read$/)
@@ -220,19 +188,20 @@ export async function handleConversations(request: Request, env: Env, path: stri
       return error('Not a member of this conversation', 403)
     }
 
-    const { results } = await env.DB.prepare(`
-      SELECT m.* FROM messages m
-      WHERE m.conversation_id = ?
-      ORDER BY m.created_at DESC
-      LIMIT ?
-    `)
-      .bind(conversationId, HISTORY_FETCH_LIMIT)
-      .all()
+    const [{ results }, readReceipts] = await Promise.all([
+      env.DB.prepare(`
+        SELECT m.* FROM messages m
+        WHERE m.conversation_id = ?
+        ORDER BY m.created_at DESC
+        LIMIT ?
+      `)
+        .bind(conversationId, HISTORY_FETCH_LIMIT)
+        .all(),
+      getConversationReadReceipts(env, conversationId),
+    ])
 
-    const messages = await Promise.all(
-      results.reverse().map((row) => formatMessage(env, row)),
-    )
-    return json(messages)
+    const messages = await formatMessages(env, [...results].reverse())
+    return json({ messages, readReceipts })
   }
 
   if (messagesMatch && request.method === 'POST') {
@@ -256,7 +225,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
         .bind(now, conversationId),
     ])
 
-    await pruneConversationMessages(env, conversationId)
+    schedulePrune(conversationId)
 
     const message = await formatMessage(env, {
       id: messageId,
@@ -310,7 +279,7 @@ export async function handleConversations(request: Request, env: Env, path: stri
         .bind(now, conversationId),
     ])
 
-    await pruneConversationMessages(env, conversationId)
+    schedulePrune(conversationId)
 
     const message = await formatMessage(env, {
       id: messageId,

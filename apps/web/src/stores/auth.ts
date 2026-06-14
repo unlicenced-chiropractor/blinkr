@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem('blinkr-token'))
   const sessionReady = ref(false)
+  let sessionInitPromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
 
@@ -43,8 +44,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function initSession() {
     if (sessionReady.value) return
-    await fetchMe()
-    sessionReady.value = true
+    if (sessionInitPromise) return sessionInitPromise
+
+    sessionInitPromise = (async () => {
+      await fetchMe()
+      sessionReady.value = true
+    })()
+
+    try {
+      await sessionInitPromise
+    } finally {
+      sessionInitPromise = null
+    }
   }
 
   async function login(username: string, password: string) {

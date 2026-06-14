@@ -36,7 +36,7 @@ function withCacheHeaders(path: string, response: Response): Response {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') return cors()
 
     const url = new URL(request.url)
@@ -66,7 +66,7 @@ export default {
       const usersRes = await handleUsers(request, env, path)
       if (usersRes) return usersRes
 
-      const convRes = await handleConversations(request, env, path)
+      const convRes = await handleConversations(request, env, path, ctx)
       if (convRes) return convRes
     }
 
