@@ -1,0 +1,15 @@
+---
+description: Blinkr deploy workflow — beta on every change, main when user says ready
+alwaysApply: true
+---
+
+# Blinkr deploy workflow
+
+After completing code changes in this repo:
+
+1. **Beta (default)** — Commit and push to the `beta` branch. CI deploys beta automatically on push.
+2. **Main (production)** — Only when the user explicitly says they are ready (e.g. "push to main", "ship to prod", "merge to main"). Then merge or cherry-pick beta → main, tag/release if needed, and let the main deploy workflow run.
+
+Do not push to `main` or production without explicit user approval.
+
+When pushing to beta, use complete commit messages and verify the build passes when practical.

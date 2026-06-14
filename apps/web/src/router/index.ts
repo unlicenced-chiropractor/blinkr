@@ -5,6 +5,7 @@ import RegisterView from '@/views/RegisterView.vue'
 import ChatView from '@/views/ChatView.vue'
 import FriendsView from '@/views/FriendsView.vue'
 import SettingsView from '@/views/SettingsView.vue'
+import ThemeStoreView from '@/views/ThemeStoreView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -41,6 +42,12 @@ const router = createRouter({
       path: '/settings',
       name: 'settings',
       component: SettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/themes',
+      name: 'theme-store',
+      component: ThemeStoreView,
       meta: { requiresAuth: true },
     },
   ],

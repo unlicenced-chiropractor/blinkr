@@ -17,6 +17,13 @@
         if (dark) document.documentElement.classList.add('dark');
         var palette = localStorage.getItem('blinkr-palette') || 'violet';
         document.documentElement.dataset.theme = palette;
+        try {
+          var raw = localStorage.getItem('blinkr-palette-vars');
+          if (raw) {
+            var vars = JSON.parse(raw);
+            for (var k in vars) document.documentElement.style.setProperty(k, vars[k]);
+          }
+        } catch (e) {}
       })();
     </script>
   </head>

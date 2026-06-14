@@ -4,7 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import type { ThemeMode } from '@/stores/theme'
-import { THEME_PALETTES } from '@/lib/themes'
+import { THEME_CATALOG_COUNT } from '@/lib/themes'
 import Avatar from '@/components/ui/Avatar.vue'
 
 const auth = useAuthStore()
@@ -268,27 +268,24 @@ function signOut() {
         <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
           Color theme
         </p>
-        <div class="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <button
-            v-for="opt in THEME_PALETTES"
-            :key="opt.id"
-            type="button"
-            class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ring-1"
-            :class="theme.palette === opt.id
-              ? 'ring-blink-500 bg-blink-500/10 dark:bg-blink-500/15'
-              : 'ring-transparent bg-elevated-light hover:ring-border-light dark:bg-elevated-dark dark:hover:ring-border-dark'"
-            @click="theme.setPalette(opt.id)"
-          >
-            <span
-              class="h-8 w-8 shrink-0 rounded-lg shadow-inner ring-1 ring-black/10 dark:ring-white/10"
-              :style="{ background: `linear-gradient(135deg, ${opt.swatch[0]}, ${opt.swatch[1]})` }"
-            />
-            <span class="min-w-0">
-              <span class="block text-sm font-semibold">{{ opt.label }}</span>
-              <span class="block truncate text-xs text-text-secondary-light dark:text-text-secondary-dark">{{ opt.hint }}</span>
+        <RouterLink
+          to="/settings/themes"
+          class="mb-5 flex items-center gap-3 rounded-xl bg-elevated-light px-3 py-3 ring-1 ring-transparent transition hover:ring-border-light dark:bg-elevated-dark dark:hover:ring-border-dark"
+        >
+          <span
+            class="h-12 w-12 shrink-0 rounded-xl shadow-inner ring-1 ring-black/10 dark:ring-white/10"
+            :style="{ background: `linear-gradient(135deg, ${theme.currentTheme.swatch[0]}, ${theme.currentTheme.swatch[1]})` }"
+          />
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-semibold">{{ theme.currentTheme.name }}</span>
+            <span class="block text-xs text-text-secondary-light dark:text-text-secondary-dark">
+              Browse {{ THEME_CATALOG_COUNT }} themes in the store
             </span>
-          </button>
-        </div>
+          </span>
+          <svg class="h-5 w-5 shrink-0 text-text-secondary-light dark:text-text-secondary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </RouterLink>
 
         <p class="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary-light dark:text-text-secondary-dark">
           Mode
