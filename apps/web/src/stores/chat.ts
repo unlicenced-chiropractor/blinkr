@@ -74,12 +74,17 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function selectConversation(id: string) {
-    if (activeConversationId.value && activeConversationId.value !== id) {
+    const isSame = activeConversationId.value === id
+    if (activeConversationId.value && !isSame) {
       ws.unsubscribe(activeConversationId.value)
     }
     activeConversationId.value = id
     ws.subscribe(id)
-    await loadMessages(id)
+    if (!isSame || !messages.value[id]?.length) {
+      await loadMessages(id)
+    } else {
+      await markActiveConversationRead()
+    }
   }
 
   async function initialize(options?: { conversationId?: string }) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import type { Conversation, Message, User } from '@blinkr/shared'
 import { useAuthStore } from '@/stores/auth'
@@ -25,6 +25,7 @@ const imageUploadError = ref('')
 const imageUploading = ref(false)
 const sendError = ref('')
 const dropDepth = ref(0)
+const messageScrollEl = ref<HTMLElement | null>(null)
 const dropActive = computed(() => dropDepth.value > 0)
 const canAcceptDrop = computed(
   () => chat.ready && chat.activeConversation && !editingMessage.value && !imageUploading.value,
@@ -149,6 +150,27 @@ function onSelect(id: string) {
   chat.selectConversation(id)
   showMobileSidebar.value = false
 }
+
+function scrollMessagesToBottom(behavior: ScrollBehavior = 'auto') {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = messageScrollEl.value
+      if (!el) return
+      el.scrollTo({ top: el.scrollHeight, behavior })
+    })
+  })
+}
+
+watch(
+  () => [chat.activeConversationId, chat.activeMessages.at(-1)?.id] as const,
+  (current, previous) => {
+    const [convId, lastId] = current
+    if (!convId) return
+    const isNewMessage = previous?.[0] === convId && lastId !== previous[1]
+    scrollMessagesToBottom(isNewMessage ? 'smooth' : 'auto')
+  },
+  { flush: 'post' },
+)
 
 async function handleSend(content: string, replyToId?: string) {
   sendError.value = ''
@@ -370,7 +392,7 @@ function onGroupCreated(id: string) {
             </div>
           </div>
 
-        <div class="scrollbar-thin flex-1 overflow-y-auto py-4">
+        <div ref="messageScrollEl" class="scrollbar-thin flex-1 overflow-y-auto py-4">
           <p
             v-if="!chat.activeMessages.length"
             class="px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark"
